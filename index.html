@@ -81,7 +81,7 @@
 
     <div id="hud-jogo">
         <h2>Balanço Químico: Mg + HCl → MgCl₂ + H₂</h2>
-        <p>Alinhe as esferas na palma da mão: Verde (Mg), Verde-Claro (Cl) e Branco (H)!</p>
+        <p>Identifique os elementos: Verde (Mg), Azul (Cl) e Branco (H)!</p>
     </div>
 
     <div id="feedback-popup"></div>
@@ -162,15 +162,16 @@
 
     <script>
         let coeficientes = [1, 1, 1, 1];
-        const gabarito = [1, 2, 1, 2]; // Mg + 2 HCl -> MgCl2 + H2
+        // GABARITO CORRIGIDO: Mg + 2 HCl -> MgCl2 + H2 (Proporção 1, 2, 1, 1)
+        const gabarito = [1, 2, 1, 1]; 
 
-        // MODELOS ULTRA-IDENTIFICÁVEIS DE ESFERAS E HASTES LONGAS
+        // MODELOS CORES ATUALIZADAS: CLORO É AZUL COBALTO (#1E3799)
         const templates = {
             mg: `<a-entity class="molecule">
                     <a-sphere radius="0.16" color="#2ECC71" material="roughness: 0.2; metalness: 0.5;"></a-sphere>
                  </a-entity>`,
             hcl: `<a-entity class="molecule" rotation="0 0 15">
-                    <a-sphere position="-0.14 0 0" radius="0.12" color="#7BED9F" material="roughness: 0.2;"></a-sphere>
+                    <a-sphere position="-0.14 0 0" radius="0.12" color="#1e3799" material="roughness: 0.2;"></a-sphere>
                     <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.012" height="0.28" color="#CCCCCC"></a-cylinder>
                     <a-sphere position="0.14 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
                    </a-entity>`,
@@ -179,115 +180,12 @@
                         
                         <a-entity>
                             <a-cylinder position="-0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
-                            <a-sphere position="-0.32 0 0" radius="0.12" color="#7BED9F"></a-sphere>
+                            <a-sphere position="-0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
                         </a-entity>
                         
                         <a-entity>
                             <a-cylinder position="0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
-                            <a-sphere position="0.32 0 0" radius="0.12" color="#7BED9F"></a-sphere>
+                            <a-sphere position="0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
                         </a-entity>
                      </a-entity>`,
             h2: `<a-entity class="molecule" rotation="0 0 -20">
-                    <a-sphere position="-0.10 0 0" radius="0.06" color="#FFFFFF" material="roughness: 0.2;"></a-sphere>
-                    <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.01" height="0.20" color="#CCCCCC"></a-cylinder>
-                    <a-sphere position="0.10 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
-                  </a-entity>`
-        };
-
-        function renderizarMoleculas() {
-            const IDs = ['grupo-mg', 'grupo-hcl', 'grupo-mgcl2', 'grupo-h2'];
-            const keys = ['mg', 'hcl', 'mgcl2', 'h2'];
-
-            IDs.forEach((id, idx) => {
-                const conteiner = document.getElementById(id);
-                conteiner.innerHTML = ''; 
-
-                let qtd = coeficientes[idx];
-                for (let i = 0; i < qtd; i++) {
-                    let wrapper = document.createElement('a-entity');
-                    
-                    // Empilhamento vertical hiper-espaçado (1.10) para contagem sem oclusões
-                    let desvioY = (i - (qtd - 1) / 2) * 1.10;
-                    wrapper.setAttribute('position', `0 ${desvioY} 0`);
-                    wrapper.innerHTML = templates[keys[idx]];
-                    
-                    conteiner.appendChild(wrapper);
-                }
-            });
-        }
-
-        function alterar(index, valor) {
-            let novoValor = coeficientes[index] + valor;
-            if (novoValor >= 1 && novoValor <= 3) { 
-                coeficientes[index] = novoValor;
-                document.getElementById(`c${index}`).innerText = novoValor;
-                renderizarMoleculas(); 
-            }
-        }
-
-        function verificarGabarito() {
-            const popup = document.getElementById('feedback-popup');
-            popup.style.display = 'block';
-            let acertou = coeficientes.every((val, index) => val === gabarito[index]);
-
-            if (acertou) {
-                popup.style.backgroundColor = "rgba(46, 204, 113, 0.95)";
-                popup.innerHTML = "🎉 PERABÉNS! REAÇÃO EQUILIBRADA!<br><span style='font-size:14px; font-weight:normal;'>Você igualou corretamente os reagentes e produtos. 1 Magnésio e 2 Cloretos de Hidrogênio geram a estabilidade perfeita!</span>";
-                popup.style.transform = "translate(-50%, -50%) scale(1)";
-            } else {
-                popup.style.backgroundColor = "rgba(231, 76, 60, 0.95)";
-                popup.innerHTML = "❌ CONTAGEM INCORRETA<br><span style='font-size:14px; font-weight:normal;'>Dica: Observe os Cloros (esferas verde-claro). No produto há 2 delas unidas ao Mg. Certifique-se de ter 2 HCl nos reagentes!</span>";
-                popup.style.transform = "translate(-50%, -50%) scale(1)";
-                setTimeout(() => {
-                    popup.style.transform = "translate(-50%, -50%) scale(0.5)";
-                    popup.style.display = 'none';
-                }, 4000);
-            }
-        }
-
-        window.onload = renderizarMoleculas;
-
-        // --- SISTEMA DE RASTREAMENTO DA PALMA DA MÃO (MediaPipe) ---
-        const videoElement = document.getElementById('webcam');
-        const filtroReacao = document.getElementById('filtro-reacao');
-
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-        hands.onResults(onResults);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({image: videoElement}); },
-            width: 1280, height: 720
-        });
-        
-        camera.start().catch(err => {
-            console.error("Falha ao inicializar câmara: ", err);
-            alert("Atenção: A câmara não pôde ser iniciada. Garanta as permissões do navegador e que o ambiente use HTTPS.");
-        });
-
-        function onResults(results) {
-            const sceneEl = document.querySelector('a-scene');
-            if (sceneEl && sceneEl.renderer) { sceneEl.renderer.setClearColor(0x000000, 0); }
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
-                const isHandOpen = landmarks[8].y < landmarks[6].y && landmarks[12].y < landmarks[10].y && landmarks[16].y < landmarks[14].y && landmarks[20].y < landmarks[18].y;
-
-                if (isHandOpen) {
-                    const handX = (landmarks[9].x - 0.5) * 2.5; 
-                    const handY = (landmarks[9].y - 0.5) * -2.5;
-                    filtroReacao.setAttribute('position', `${handX} ${handY} -2.8`);
-                    filtroReacao.setAttribute('visible', 'true');
-                } else {
-                    filtroReacao.setAttribute('visible', 'false');
-                }
-            } else {
-                filtroReacao.setAttribute('visible', 'false');
-            }
-        }
-    </script>
-</body>
-</html>
