@@ -514,7 +514,7 @@
   <!-- ── HUD topo ── -->
   <header id="hud" aria-label="Informações da reação">
     <h2>Mg + HCl → MgCl₂ + H₂</h2>
-    <p>Abra a mão para ver as moléculas · Ajuste os coeficientes abaixo</p>
+    <p>Mostre a mão aberta na câmera para ver as moléculas</p>
     <div id="status-mao" aria-live="polite">
       <div class="dot-status" id="dot-mao"></div>
       <span id="txt-mao">Aguardando mão…</span>
@@ -718,6 +718,7 @@
     scene.add(dir2);
 
     moleculaGroup = new THREE.Group();
+    moleculaGroup.visible = false; // só aparece quando mão aberta for detectada
     scene.add(moleculaGroup);
 
     window.addEventListener('resize', onResize);
@@ -993,15 +994,18 @@
         const ny = (lm[9].y - 0.5) * -5;
         maoPos = { x: nx, y: ny };
         maoAtiva = true;
+        if (moleculaGroup) moleculaGroup.visible = true;
       } else {
-        txt.textContent = 'Feche os dedos para ocultar';
+        txt.textContent = 'Abra a mão para ver as moléculas';
         maoAtiva = false;
+        if (moleculaGroup) moleculaGroup.visible = false;
       }
     } else {
       maoDetectada = false;
       maoAtiva = false;
       dot.className = 'dot-status';
       txt.textContent = 'Aguardando mão…';
+      if (moleculaGroup) moleculaGroup.visible = false;
     }
   }
 
@@ -1020,9 +1024,8 @@
 
     const video = document.getElementById('video-bg');
 
-    // Detecta se é mobile para tentar câmera traseira
-    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-    const facingMode = isMobile ? 'environment' : 'user';
+    // Sempre usa câmera frontal (selfie), inclusive em celulares
+    const facingMode = 'user';
 
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
@@ -1076,6 +1079,8 @@
     document.getElementById('status-mao').style.display = 'none';
 
     initThree();
+    // No modo sem câmera, moleculaGroup já existe após initThree
+    if (moleculaGroup) moleculaGroup.visible = true;
     maoAtiva = false;
     atualizarBotoes();
   }
