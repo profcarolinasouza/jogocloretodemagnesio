@@ -954,21 +954,48 @@
   //  MEDIAPIPE — Rastreamento de mão
   // ════════════════════════════════════════════════
   let hands;
+  // Canvas oculto: espelha o frame antes de enviar ao MediaPipe.
+  // O <video> é exibido com scaleX(-1); o MediaPipe precisa receber
+  // o mesmo espelho para que as coordenadas X batam com a tela.
+  let mirrorCanvas, mirrorCtx;
 
-  function initMediaPipe() {
+  function criarMirrorCanvas() {
+    mirrorCanvas = document.createElement('canvas');
+    mirrorCtx    = mirrorCanvas.getContext('2d');
+  }
+
+  function frameEspelhado(video) {
+    if (mirrorCanvas.width  !== video.videoWidth  ||
+        mirrorCanvas.height !== video.videoHeight) {
+      mirrorCanvas.width  = video.videoWidth  || 640;
+      mirrorCanvas.height = video.videoHeight || 480;
+    }
+    mirrorCtx.save();
+    mirrorCtx.translate(mirrorCanvas.width, 0);
+    mirrorCtx.scale(-1, 1);
+    mirrorCtx.drawImage(video, 0, 0);
+    mirrorCtx.restore();
+    return mirrorCanvas;
+  }
+
+  async function initMediaPipe() {
     try {
+      criarMirrorCanvas();
       hands = new Hands({
         locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
       });
       hands.setOptions({
         maxNumHands: 1,
         modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
+        minDetectionConfidence: 0.55,
+        minTrackingConfidence: 0.55
       });
       hands.onResults(onResultsMao);
+      // Aguarda o modelo carregar antes de iniciar o loop de frames
+      await hands.initialize();
+      console.log('MediaPipe Hands pronto.');
     } catch(e) {
-      console.warn('MediaPipe não disponível:', e);
+      console.warn('MediaPipe nao disponivel:', e);
     }
   }
 
@@ -978,6 +1005,8 @@
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const lm = results.multiHandLandmarks[0];
+
+      // Mao aberta: pontas dos 4 dedos acima das articulacoes PIP
       const maoAberta =
         lm[8].y  < lm[6].y  &&
         lm[12].y < lm[10].y &&
@@ -989,7 +1018,8 @@
 
       if (maoAberta) {
         txt.textContent = 'Mão aberta detectada';
-        // Converter coordenadas MediaPipe → espaço Three.js
+        // lm[9] = base do dedo médio, ponto estável
+        // Como o canvas já está espelhado, x já corresponde ao visual
         const nx = (lm[9].x - 0.5) * -8;
         const ny = (lm[9].y - 0.5) * -5;
         maoPos = { x: nx, y: ny };
@@ -1020,37 +1050,44 @@
     document.getElementById('painel').classList.add('visivel');
 
     initThree();
-    initMediaPipe();
 
     const video = document.getElementById('video-bg');
-
-    // Sempre usa câmera frontal (selfie), inclusive em celulares
-    const facingMode = 'user';
 
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode }
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
         });
         video.srcObject = stream;
         await video.play();
         video.classList.add('active');
 
-        // Loop de processamento com throttle (máx ~20fps)
-        let ultimo = 0;
-        const FPS_ALVO = 20;
-        const intervalo = 1000 / FPS_ALVO;
+        // Inicializa MediaPipe APÓS o vídeo estar a reproduzir
+        // (garante que o modelo carrega antes do primeiro frame ser enviado)
+        await initMediaPipe();
 
-        function processarFrame(ts) {
-          if (ts - ultimo >= intervalo) {
-            ultimo = ts;
-            if (!video.paused && !video.ended && hands) {
-              hands.send({ image: video }).catch(() => {});
-            }
-          }
+        // Loop com throttle (~20 fps) — usa await para não acumular filas
+        let ultimo = 0;
+        const intervalo = 1000 / 20;
+
+        async function processarFrame(ts) {
           requestAnimationFrame(processarFrame);
+          if (ts - ultimo < intervalo) return;
+          ultimo = ts;
+          if (!video.paused && !video.ended && hands &&
+              video.videoWidth > 0 && video.videoHeight > 0) {
+            try {
+              await hands.send({ image: frameEspelhado(video) });
+            } catch(e) { /* ignora erros pontuais de frame */ }
+          }
         }
-        video.onloadedmetadata = () => requestAnimationFrame(processarFrame);
+
+        // Inicia loop assim que o vídeo tiver dimensões reais
+        if (video.videoWidth > 0) {
+          requestAnimationFrame(processarFrame);
+        } else {
+          video.addEventListener('loadeddata', () => requestAnimationFrame(processarFrame), { once: true });
+        }
 
       } catch (err) {
         console.error('Câmera bloqueada:', err);
