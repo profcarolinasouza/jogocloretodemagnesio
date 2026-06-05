@@ -1,315 +1,1084 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jogo AR - Formação do Cloreto de Magnésio (Nativo)</title>
-    
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jogo AR — Formação do Cloreto de Magnésio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 
-    <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; }
-        
-        /* Força o vídeo a ocupar todo o ecrã no fundo */
-        video { 
-            position: absolute; 
-            width: 100vw; 
-            height: 100vh; 
-            object-fit: cover; 
-            z-index: 0; 
-            transform: scaleX(-1); 
-        }
-        
-        #canvas-container { 
-            position: absolute; 
-            width: 100vw; 
-            height: 100vh; 
-            z-index: 1; 
-        }
-        
-        #hud-jogo {
-            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            background: rgba(20, 20, 20, 0.9); color: white; padding: 12px 25px;
-            border-radius: 15px; text-align: center; z-index: 10; width: 85%; max-width: 540px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #444;
-        }
-        h2 { margin: 0 0 5px 0; font-size: 18px; color: #00cbc6; }
-        p { margin: 0; font-size: 13px; color: #bbb; }
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 
-        #painel-controles {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px;
-            width: 95%; max-width: 520px;
-        }
+  <style>
+    :root {
+      --mg:   #2ecc71;
+      --cl:   #4a9eff;
+      --h:    #f0f0f0;
+      --hcl:  #4a9eff;
+      --mgcl: #10ac84;
+      --h2:   #e8e8e8;
+      --accent: #00d2c8;
+      --bg:   #0a0e1a;
+      --surface: rgba(255,255,255,0.06);
+      --border:  rgba(255,255,255,0.12);
+      --text:    #e8eaf0;
+      --muted:   #8892a4;
+      --success: #2ecc71;
+      --error:   #e74c3c;
+      --radius:  14px;
+      --font-ui: 'Nunito', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
 
-        .ajuste-container {
-            display: flex; justify-content: space-between; width: 100%; background: rgba(0,0,0,0.8);
-            padding: 8px; border-radius: 12px; border: 1px solid #444;
-        }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        .controle-bloco { display: flex; flex-direction: column; align-items: center; color: white; width: 24%; }
-        .label-comp { font-size: 12px; font-weight: bold; margin-bottom: 4px; text-align: center; }
-        .botoes-row { display: flex; align-items: center; gap: 4px; }
-        
-        .btn-seta {
-            background: #444; color: white; border: 1px solid #666; width: 26px; height: 26px;
-            border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;
-        }
-        .btn-seta:active { background: #00cbc6; }
-        .valor-coef { font-size: 16px; font-weight: bold; min-width: 14px; text-align: center; }
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
 
-        #btn-verificar {
-            background: #218c74; color: white; border: none; padding: 12px 35px;
-            font-size: 16px; font-weight: bold; border-radius: 25px; cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 80%;
-        }
+    /* ── Camadas base ── */
+    #video-bg {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+    #video-bg.active { opacity: 1; }
 
-        #feedback-popup {
-            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
-            padding: 20px 30px; border-radius: 15px; color: white; font-weight: bold; text-align: center;
-            z-index: 20; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-size: 18px;
-            transition: transform 0.3s ease;
-        }
-    </style>
+    #three-canvas {
+      position: fixed; inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── Tela de boas-vindas ── */
+    #tela-intro {
+      position: fixed; inset: 0;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #0a0e1a 0%, #0d1a2e 60%, #0a1a1a 100%);
+      padding: 24px;
+      text-align: center;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #tela-intro.oculto { opacity: 0; visibility: hidden; }
+
+    .intro-logo {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      opacity: 0.8;
+    }
+
+    .intro-titulo {
+      font-family: var(--font-mono);
+      font-size: clamp(22px, 5vw, 34px);
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .intro-reacao {
+      font-family: var(--font-mono);
+      font-size: clamp(14px, 3.5vw, 20px);
+      color: var(--accent);
+      margin-bottom: 28px;
+      letter-spacing: 1px;
+    }
+
+    .legenda-elementos {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .elem-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      padding: 6px 14px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .elem-bolinha {
+      width: 14px; height: 14px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .instrucoes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      max-width: 560px;
+      width: 100%;
+      margin-bottom: 32px;
+    }
+    .instrucao-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-align: left;
+    }
+    .instrucao-card .ic-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+    .instrucao-card .ic-txt {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .btn-primario {
+      background: var(--accent);
+      color: #0a0e1a;
+      border: none;
+      padding: 14px 40px;
+      border-radius: 50px;
+      font-family: var(--font-ui);
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+      box-shadow: 0 0 24px rgba(0,210,200,0.35);
+    }
+    .btn-primario:hover { transform: scale(1.04); box-shadow: 0 0 36px rgba(0,210,200,0.5); }
+    .btn-primario:active { transform: scale(0.97); }
+
+    .btn-modo {
+      margin-top: 14px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 10px 28px;
+      border-radius: 50px;
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .btn-modo:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+
+    /* ── HUD topo ── */
+    #hud {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 20;
+      background: rgba(10,14,26,0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      text-align: center;
+      width: 90%; max-width: 520px;
+      display: none;
+    }
+    #hud.visivel { display: block; }
+    #hud h2 {
+      font-family: var(--font-mono);
+      font-size: clamp(13px, 3vw, 16px);
+      color: var(--accent);
+      margin-bottom: 3px;
+      letter-spacing: 0.5px;
+    }
+    #hud p { font-size: 12px; color: var(--muted); }
+
+    /* Indicador de mão */
+    #status-mao {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .dot-status {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .dot-status.ativo { background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+    /* ── Painel de controles ── */
+    #painel {
+      position: fixed;
+      bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 20;
+      width: 96%; max-width: 540px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    #painel.visivel { display: flex; }
+
+    /* Placar */
+    #placar {
+      display: flex; gap: 16px;
+      width: 100%; justify-content: center;
+    }
+    .placar-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .placar-item span {
+      display: block;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Linha de coeficientes */
+    .coef-linha {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      background: rgba(10,14,26,0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 10px;
+      justify-content: center;
+    }
+
+    .coef-bloco {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+    .coef-label {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .coef-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-coef {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, transform 0.1s;
+      font-family: var(--font-ui);
+      line-height: 1;
+    }
+    .btn-coef:hover { background: rgba(255,255,255,0.14); }
+    .btn-coef:active { transform: scale(0.88); background: var(--accent); color: #0a0e1a; }
+    .btn-coef:disabled { opacity: 0.25; cursor: default; }
+
+    .coef-valor {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      min-width: 20px;
+      text-align: center;
+      color: #fff;
+    }
+
+    .sinal-eq {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      color: var(--muted);
+      padding: 0 2px;
+      align-self: flex-end;
+      padding-bottom: 4px;
+    }
+
+    #btn-verificar {
+      width: 100%;
+      background: var(--accent);
+      color: #0a0e1a;
+      border: none;
+      padding: 13px;
+      border-radius: 50px;
+      font-family: var(--font-ui);
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+      box-shadow: 0 0 20px rgba(0,210,200,0.25);
+    }
+    #btn-verificar:hover { transform: scale(1.02); box-shadow: 0 0 30px rgba(0,210,200,0.4); }
+    #btn-verificar:active { transform: scale(0.97); }
+
+    /* ── Popup de feedback ── */
+    #popup-feedback {
+      position: fixed;
+      top: 42%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      z-index: 40;
+      padding: 22px 28px;
+      border-radius: 18px;
+      font-family: var(--font-ui);
+      font-weight: 800;
+      font-size: 20px;
+      text-align: center;
+      color: white;
+      display: none;
+      opacity: 0;
+      max-width: 88vw;
+      transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
+      pointer-events: none;
+    }
+    #popup-feedback.visivel {
+      display: block;
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    #popup-feedback.acerto { background: rgba(20,160,90,0.95); }
+    #popup-feedback.erro   { background: rgba(200,50,40,0.92); }
+    #popup-feedback .popup-detalhe {
+      font-size: 14px; font-weight: 600;
+      margin-top: 8px; opacity: 0.9;
+      line-height: 1.5;
+    }
+
+    /* Dica progressiva */
+    #dica-container {
+      position: fixed;
+      bottom: 150px; left: 50%; transform: translateX(-50%);
+      z-index: 25;
+      background: rgba(10,14,26,0.9);
+      border: 1px solid rgba(0,210,200,0.3);
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      font-size: 13px;
+      color: var(--accent);
+      max-width: 88vw;
+      text-align: center;
+      display: none;
+      font-weight: 600;
+    }
+    #dica-container.visivel { display: block; }
+
+    /* ── Modo sem câmera (fallback) ── */
+    #modo-fallback-bg {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at 40% 50%, #0d1f2d 0%, #0a0e1a 70%);
+      z-index: 0;
+      display: none;
+    }
+    #modo-fallback-bg.ativo { display: block; }
+
+    /* ── Confete ── */
+    #confete-container {
+      position: fixed; inset: 0;
+      z-index: 45;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .confete-p {
+      position: absolute;
+      top: -12px;
+      width: 10px; height: 10px;
+      border-radius: 2px;
+      opacity: 0;
+      animation: cair 1.8s ease-in forwards;
+    }
+    @keyframes cair {
+      0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
+      100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
+    }
+
+    /* ── Overlay de erro de câmera ── */
+    #overlay-camera {
+      position: fixed; inset: 0;
+      z-index: 60;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(10,14,26,0.95);
+      padding: 24px;
+      text-align: center;
+      flex-direction: column; gap: 16px;
+    }
+    #overlay-camera.visivel { display: flex; }
+    #overlay-camera p { color: var(--muted); max-width: 360px; font-size: 15px; line-height: 1.6; }
+    #overlay-camera strong { color: var(--text); display: block; font-size: 18px; margin-bottom: 6px; }
+
+    /* ── Responsividade ── */
+    @media (max-width: 400px) {
+      .coef-valor { font-size: 17px; }
+      .coef-label { font-size: 11px; }
+      .btn-coef { width: 24px; height: 24px; font-size: 14px; }
+      .sinal-eq { font-size: 15px; }
+    }
+  </style>
 </head>
 <body>
 
-    <video id="webcam" autoplay playsinline muted></video>
+  <!-- Câmera de fundo -->
+  <video id="video-bg" autoplay playsinline muted aria-hidden="true"></video>
 
-    <div id="hud-jogo">
-        <h2>Balanço Químico: Mg + HCl → MgCl₂ + H₂</h2>
-        <p>Identifique os elementos: Verde (Mg), Azul (Cl) e Branco (H)!</p>
+  <!-- Fundo fallback (modo sem câmera) -->
+  <div id="modo-fallback-bg" aria-hidden="true"></div>
+
+  <!-- Canvas Three.js para moléculas -->
+  <canvas id="three-canvas" aria-hidden="true"></canvas>
+
+  <!-- Confetes -->
+  <div id="confete-container" aria-hidden="true"></div>
+
+  <!-- ── Tela de boas-vindas ── -->
+  <div id="tela-intro" role="main">
+    <div class="intro-logo">Química · AR</div>
+    <h1 class="intro-titulo">Balanço Químico</h1>
+    <div class="intro-reacao" aria-label="Reação: Magnésio mais ácido clorídrico forma cloreto de magnésio e hidrogênio">
+      Mg + HCl → MgCl₂ + H₂
     </div>
 
-    <div id="feedback-popup"></div>
+    <div class="legenda-elementos" role="list" aria-label="Legenda de cores dos elementos">
+      <div class="elem-pill" role="listitem">
+        <div class="elem-bolinha" style="background:var(--mg)" aria-hidden="true"></div>
+        <span>Verde = Mg</span>
+      </div>
+      <div class="elem-pill" role="listitem">
+        <div class="elem-bolinha" style="background:var(--cl)" aria-hidden="true"></div>
+        <span>Azul = Cl</span>
+      </div>
+      <div class="elem-pill" role="listitem">
+        <div class="elem-bolinha" style="background:var(--h)" aria-hidden="true"></div>
+        <span>Branco = H</span>
+      </div>
+    </div>
 
-    <div id="painel-controles">
-        <div class="ajuste-container">
-            <div class="controle-bloco">
-                <span class="label-comp" style="color:#2ecc71;">Mg</span>
-                <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(0, -1)">-</button>
-                    <span id="c0" class="valor-coef">1</span>
-                    <button class="btn-seta" onclick="alterar(0, 1)">+</button>
-                </div>
-            </div>
-            <div class="controle-bloco">
-                <span class="label-comp" style="color:#a4b0be;">HCl</span>
-                <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(1, -1)">-</button>
-                    <span id="c1" class="valor-coef">1</span>
-                    <button class="btn-seta" onclick="alterar(1, 1)">+</button>
-                </div>
-            </div>
-            <div class="controle-bloco">
-                <span class="label-comp" style="color:#10ac84;">MgCl₂</span>
-                <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(2, -1)">-</button>
-                    <span id="c2" class="valor-coef">1</span>
-                    <button class="btn-seta" onclick="alterar(2, 1)">+</button>
-                </div>
-            </div>
-            <div class="controle-bloco">
-                <span class="label-comp" style="color:#ffffff;">H₂</span>
-                <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(3, -1)">-</button>
-                    <span id="c3" class="valor-coef">1</span>
-                    <button class="btn-seta" onclick="alterar(3, 1)">+</button>
-                </div>
-            </div>
+    <div class="instrucoes-grid">
+      <div class="instrucao-card">
+        <div class="ic-num">PASSO 01</div>
+        <div class="ic-txt">Permita o acesso à câmera quando solicitado</div>
+      </div>
+      <div class="instrucao-card">
+        <div class="ic-num">PASSO 02</div>
+        <div class="ic-txt">Abra a mão na frente da câmera para ver as moléculas</div>
+      </div>
+      <div class="instrucao-card">
+        <div class="ic-num">PASSO 03</div>
+        <div class="ic-txt">Ajuste os coeficientes com os botões + e −</div>
+      </div>
+      <div class="instrucao-card">
+        <div class="ic-num">PASSO 04</div>
+        <div class="ic-txt">Clique em "Verificar" quando achar que está balanceado</div>
+      </div>
+    </div>
+
+    <button class="btn-primario" id="btn-iniciar" onclick="iniciarJogoAR()">
+      Iniciar com câmera
+    </button>
+    <button class="btn-modo" id="btn-sem-camera" onclick="iniciarSemCamera()">
+      Jogar sem câmera
+    </button>
+  </div>
+
+  <!-- ── HUD topo ── -->
+  <header id="hud" aria-label="Informações da reação">
+    <h2>Mg + HCl → MgCl₂ + H₂</h2>
+    <p>Abra a mão para ver as moléculas · Ajuste os coeficientes abaixo</p>
+    <div id="status-mao" aria-live="polite">
+      <div class="dot-status" id="dot-mao"></div>
+      <span id="txt-mao">Aguardando mão…</span>
+    </div>
+  </header>
+
+  <!-- ── Popup de feedback ── -->
+  <div id="popup-feedback" role="alert" aria-live="assertive"></div>
+
+  <!-- ── Dica progressiva ── -->
+  <div id="dica-container" role="status" aria-live="polite"></div>
+
+  <!-- ── Painel de controles ── -->
+  <section id="painel" aria-label="Controles de coeficientes">
+
+    <!-- Placar -->
+    <div id="placar">
+      <div class="placar-item">
+        Tentativas
+        <span id="num-tentativas">0</span>
+      </div>
+      <div class="placar-item">
+        Pontuação
+        <span id="num-pontos">0</span>
+      </div>
+    </div>
+
+    <!-- Controles de coeficientes -->
+    <div class="coef-linha" role="group" aria-label="Coeficientes da equação">
+
+      <!-- Mg -->
+      <div class="coef-bloco">
+        <span class="coef-label" style="color:var(--mg)">Mg</span>
+        <div class="coef-ctrl">
+          <button class="btn-coef" onclick="alterar(0,-1)" aria-label="Diminuir coeficiente do Magnésio">−</button>
+          <span class="coef-valor" id="c0" aria-label="Coeficiente do Magnésio: 1">1</span>
+          <button class="btn-coef" onclick="alterar(0,1)"  aria-label="Aumentar coeficiente do Magnésio">+</button>
         </div>
-        <button id="btn-verificar" onclick="verificarGabarito()">Verificar Balanceamento</button>
+      </div>
+
+      <span class="sinal-eq" aria-hidden="true">+</span>
+
+      <!-- HCl -->
+      <div class="coef-bloco">
+        <span class="coef-label" style="color:var(--hcl)">HCl</span>
+        <div class="coef-ctrl">
+          <button class="btn-coef" onclick="alterar(1,-1)" aria-label="Diminuir coeficiente do HCl">−</button>
+          <span class="coef-valor" id="c1" aria-label="Coeficiente do HCl: 1">1</span>
+          <button class="btn-coef" onclick="alterar(1,1)"  aria-label="Aumentar coeficiente do HCl">+</button>
+        </div>
+      </div>
+
+      <span class="sinal-eq" aria-hidden="true">→</span>
+
+      <!-- MgCl₂ -->
+      <div class="coef-bloco">
+        <span class="coef-label" style="color:var(--mgcl)">MgCl₂</span>
+        <div class="coef-ctrl">
+          <button class="btn-coef" onclick="alterar(2,-1)" aria-label="Diminuir coeficiente do MgCl2">−</button>
+          <span class="coef-valor" id="c2" aria-label="Coeficiente do MgCl2: 1">1</span>
+          <button class="btn-coef" onclick="alterar(2,1)"  aria-label="Aumentar coeficiente do MgCl2">+</button>
+        </div>
+      </div>
+
+      <span class="sinal-eq" aria-hidden="true">+</span>
+
+      <!-- H₂ -->
+      <div class="coef-bloco">
+        <span class="coef-label" style="color:var(--h2)">H₂</span>
+        <div class="coef-ctrl">
+          <button class="btn-coef" onclick="alterar(3,-1)" aria-label="Diminuir coeficiente do H2">−</button>
+          <span class="coef-valor" id="c3" aria-label="Coeficiente do H2: 1">1</span>
+          <button class="btn-coef" onclick="alterar(3,1)"  aria-label="Aumentar coeficiente do H2">+</button>
+        </div>
+      </div>
     </div>
 
-    <div id="canvas-container">
-        <a-scene embedded vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-            <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+    <button id="btn-verificar" onclick="verificarGabarito()" aria-label="Verificar se o balanceamento está correto">
+      Verificar Balanceamento
+    </button>
+  </section>
 
-            <a-light type="ambient" intensity="0.9"></a-light>
-            <a-light type="directional" position="1 3 2" intensity="0.8"></a-light>
+  <!-- ── Overlay de erro de câmera ── -->
+  <div id="overlay-camera" role="alertdialog" aria-label="Erro de câmera">
+    <p>
+      <strong>Câmera não disponível</strong>
+      Não foi possível acessar a câmera. Verifique as permissões no ícone de cadeado na barra de endereço, ou jogue no modo sem câmera.
+    </p>
+    <button class="btn-primario" onclick="iniciarSemCamera()">Jogar sem câmera</button>
+  </div>
 
-            <a-entity id="filtro-reacao" position="0 0 -2.8" scale="0.32 0.32 0.32" visible="false">
-                
-                <a-entity id="grupo-mg" position="-2.0 0 0"></a-entity>
-                
-                <a-entity position="-1.2 0 0">
-                    <a-box width="0.02" height="0.14" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
-                    <a-box width="0.14" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
-                </a-entity>
+  <!-- ── Audio context para sons ── -->
+  <script>
+  // ════════════════════════════════════════════════
+  //  ESTADO DO JOGO
+  // ════════════════════════════════════════════════
+  let coeficientes = [1, 1, 1, 1];
+  const MAX_COEF   = 4;
+  const MIN_COEF   = 1;
+  const gabarito   = [1, 2, 1, 1];
 
-                <a-entity id="grupo-hcl" position="-0.4 0 0"></a-entity>
+  let tentativas    = 0;
+  let pontos        = 0;
+  let errosSeguidosCont = 0;
+  let jogoFinalizado = false;
+  let modoSemCamera  = false;
+  let maoDetectada   = false;
+  let audioCtx       = null;
 
-                <a-entity position="0.5 0 0">
-                    <a-box position="-0.04 0 0" width="0.16" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
-                    <a-cone position="0.06 0 0" radius-bottom="0.05" height="0.08" color="#FFFFFF" rotation="0 0 -90" material="shader: flat;"></a-cone>
-                </a-entity>
+  // ════════════════════════════════════════════════
+  //  ÁUDIO (Web Audio API — sem arquivos externos)
+  // ════════════════════════════════════════════════
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
 
-                <a-entity id="grupo-mgcl2" position="1.4 0 0"></a-entity>
+  function tocarSom(tipo) {
+    try {
+      const ctx = getAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
 
-                <a-entity position="2.2 0 0">
-                    <a-box width="0.02" height="0.14" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
-                    <a-box width="0.14" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
-                </a-entity>
-
-                <a-entity id="grupo-h2" position="2.9 0 0"></a-entity>
-
-            </a-entity>
-        </a-scene>
-    </div>
-
-    <script>
-        let coeficientes = [1, 1, 1, 1];
-        // GABARITO: Mg + 2 HCl -> MgCl2 + H2 (Proporção 1, 2, 1, 1)
-        const gabarito = [1, 2, 1, 1]; 
-
-        // MODELOS CORES ATUALIZADAS: CLORO É AZUL COBALTO (#1E3799)
-        const templates = {
-            mg: `<a-entity class="molecule">
-                    <a-sphere radius="0.16" color="#2ECC71" material="roughness: 0.2; metalness: 0.5;"></a-sphere>
-                 </a-entity>`,
-            hcl: `<a-entity class="molecule" rotation="0 0 15">
-                    <a-sphere position="-0.14 0 0" radius="0.12" color="#1e3799" material="roughness: 0.2;"></a-sphere>
-                    <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.012" height="0.28" color="#CCCCCC"></a-cylinder>
-                    <a-sphere position="0.14 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
-                   </a-entity>`,
-            mgcl2: `<a-entity class="molecule" rotation="15 30 0">
-                        <a-sphere radius="0.14" color="#2ECC71" material="roughness: 0.2;"></a-sphere>
-                        
-                        <a-entity>
-                            <a-cylinder position="-0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
-                            <a-sphere position="-0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
-                        </a-entity>
-                        
-                        <a-entity>
-                            <a-cylinder position="0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
-                            <a-sphere position="0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
-                        </a-entity>
-                     </a-entity>`,
-            h2: `<a-entity class="molecule" rotation="0 0 -20">
-                    <a-sphere position="-0.10 0 0" radius="0.06" color="#FFFFFF" material="roughness: 0.2;"></a-sphere>
-                    <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.01" height="0.20" color="#CCCCCC"></a-cylinder>
-                    <a-sphere position="0.10 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
-                  </a-entity>`
-        };
-
-        function renderizarMoleculas() {
-            const IDs = ['grupo-mg', 'grupo-hcl', 'grupo-mgcl2', 'grupo-h2'];
-            const keys = ['mg', 'hcl', 'mgcl2', 'h2'];
-
-            IDs.forEach((id, idx) => {
-                const conteiner = document.getElementById(id);
-                conteiner.innerHTML = ''; 
-
-                let qtd = coeficientes[idx];
-                for (let i = 0; i < qtd; i++) {
-                    let wrapper = document.createElement('a-entity');
-                    let desvioY = (i - (qtd - 1) / 2) * 1.10;
-                    wrapper.setAttribute('position', `0 ${desvioY} 0`);
-                    wrapper.innerHTML = templates[keys[idx]];
-                    conteiner.appendChild(wrapper);
-                }
-            });
-        }
-
-        function alterar(index, valor) {
-            let novoValor = coeficientes[index] + valor;
-            if (novoValor >= 1 && novoValor <= 3) { 
-                coeficientes[index] = novoValor;
-                document.getElementById(`c${index}`).innerText = novoValor;
-                renderizarMoleculas(); 
-            }
-        }
-
-        // LÓGICA DE VALIDAÇÃO REVISADA E TESTADA
-        function verificarGabarito() {
-            const popup = document.getElementById('feedback-popup');
-            popup.style.display = 'block';
-            
-            let acertou = coeficientes.every((val, index) => val === gabarito[index]);
-
-            if (acertou) {
-                popup.style.backgroundColor = "rgba(46, 204, 113, 0.95)";
-                popup.innerHTML = "🎉 PARABÉNS! REAÇÃO BALANCEADA!<br><span style='font-size:14px; font-weight:normal;'>Você equilibrou perfeitamente. 1 Magnésio e 2 Ácidos Clorídricos mantêm a igualdade exata dos átomos!</span>";
-                popup.style.transform = "translate(-50%, -50%) scale(1)";
-            } else {
-                popup.style.backgroundColor = "rgba(231, 76, 60, 0.95)";
-                popup.innerHTML = "❌ EQUAÇÃO DESBALANCADA<br><span style='font-size:14px; font-weight:normal;'>Dica: Conte as esferas azuis (Cloro). No produto MgCl₂ existem duas. Você precisa ajustar o HCl nos reagentes!</span>";
-                popup.style.transform = "translate(-50%, -50%) scale(1)";
-                
-                setTimeout(() => {
-                    popup.style.transform = "translate(-50%, -50%) scale(0.5)";
-                    popup.style.display = 'none';
-                }, 4000);
-            }
-        }
-
-        window.onload = renderizarMoleculas;
-
-        // --- INICIALIZAÇÃO DA CÂMARA NATIVA (Ignora falhas de CDNs) ---
-        const videoElement = document.getElementById('webcam');
-        const filtroReacao = document.getElementById('filtro-reacao');
-
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      if (tipo === 'acerto') {
+        // Acorde de vitória: três notas ascendentes
+        const notas = [523.25, 659.25, 783.99]; // C5 E5 G5
+        notas.forEach((freq, i) => {
+          const o2 = ctx.createOscillator();
+          const g2 = ctx.createGain();
+          o2.type = 'sine';
+          o2.frequency.value = freq;
+          o2.connect(g2); g2.connect(ctx.destination);
+          g2.gain.setValueAtTime(0, ctx.currentTime + i * 0.14);
+          g2.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.14 + 0.05);
+          g2.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.14 + 0.4);
+          o2.start(ctx.currentTime + i * 0.14);
+          o2.stop(ctx.currentTime + i * 0.14 + 0.45);
         });
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-        hands.onResults(onResults);
+        return;
+      }
 
-        // API nativa do navegador que força a ativação do hardware da câmara
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
-            })
-            .then(function(stream) {
-                videoElement.srcObject = stream;
-                videoElement.play();
-                
-                // Vincula o loop de frames nativo ao processamento do MediaPipe
-                function processarFrame() {
-                    if (!videoElement.paused && !videoElement.ended) {
-                        hands.send({ image: videoElement }).then(() => {
-                            requestAnimationFrame(processarFrame);
-                        }).catch(() => {
-                            requestAnimationFrame(processarFrame);
-                        });
-                    } else {
-                        requestAnimationFrame(processarFrame);
-                    }
-                }
-                videoElement.onloadedmetadata = () => {
-                    processarFrame();
-                };
-            })
-            .catch(function(err) {
-                console.error("Erro ao aceder à câmara nativa: ", err);
-                alert("A câmara foi bloqueada. Por favor, clique no ícone de cadeado ao lado do link no seu navegador e mude a Permissão da Câmara para 'Permitir'.");
-            });
-        } else {
-            alert("O seu navegador não suporta APIs de câmara nativa. Experimente utilizar o Google Chrome atualizado.");
-        }
+      if (tipo === 'erro') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(120, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.32);
+        return;
+      }
 
-        function onResults(results) {
-            const sceneEl = document.querySelector('a-scene');
-            if (sceneEl && sceneEl.renderer) { sceneEl.renderer.setClearColor(0x000000, 0); }
+      if (tipo === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.07);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.08);
+        return;
+      }
+    } catch(e) { /* silencia se AudioContext bloqueado */ }
+  }
 
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
-                const isHandOpen = landmarks[8].y < landmarks[6].y && landmarks[12].y < landmarks[10].y && landmarks[16].y < landmarks[14].y && landmarks[20].y < landmarks[18].y;
+  // ════════════════════════════════════════════════
+  //  THREE.JS — Renderização das moléculas
+  // ════════════════════════════════════════════════
+  let renderer, scene, camera, moleculaGroup;
+  let maoPos = { x: 0, y: 0 };
+  let maoAtiva = false;
+  let animFrame;
 
-                if (isHandOpen) {
-                    const handX = (landmarks[9].x - 0.5) * 2.5; 
-                    const handY = (landmarks[9].y - 0.5) * -2.5;
-                    filtroReacao.setAttribute('position', `${handX} ${handY} -2.8`);
-                    filtroReacao.setAttribute('visible', 'true');
-                } else {
-                    filtroReacao.setAttribute('visible', 'false');
-                }
-            } else {
-                filtroReacao.setAttribute('visible', 'false');
+  const CORES = {
+    mg:  0x2ecc71,
+    cl:  0x4a9eff,
+    h:   0xf0f0f0,
+    link:0x999999
+  };
+
+  function initThree() {
+    const canvas = document.getElementById('three-canvas');
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+
+    scene  = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 5);
+
+    // Iluminação
+    const amb = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(amb);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(2, 4, 3);
+    scene.add(dir);
+    const dir2 = new THREE.DirectionalLight(0x00d2c8, 0.4);
+    dir2.position.set(-3, -2, 1);
+    scene.add(dir2);
+
+    moleculaGroup = new THREE.Group();
+    scene.add(moleculaGroup);
+
+    window.addEventListener('resize', onResize);
+    renderizarMoleculas();
+    animLoop();
+  }
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function criarEsfera(raio, cor, pos) {
+    const geo  = new THREE.SphereGeometry(raio, 24, 24);
+    const mat  = new THREE.MeshPhongMaterial({ color: cor, shininess: 80, specular: 0x444444 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos);
+    return mesh;
+  }
+
+  function criarCilindro(de, para, raio=0.025) {
+    const dir = new THREE.Vector3().subVectors(new THREE.Vector3(...para), new THREE.Vector3(...de));
+    const len = dir.length();
+    const geo = new THREE.CylinderGeometry(raio, raio, len, 8);
+    const mat = new THREE.MeshPhongMaterial({ color: CORES.link, shininess: 30 });
+    const mesh = new THREE.Mesh(geo, mat);
+    const mid = [(de[0]+para[0])/2, (de[1]+para[1])/2, (de[2]+para[2])/2];
+    mesh.position.set(...mid);
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0,1,0),
+      dir.clone().normalize()
+    );
+    return mesh;
+  }
+
+  function criarMolMg() {
+    const g = new THREE.Group();
+    g.add(criarEsfera(0.30, CORES.mg, [0,0,0]));
+    return g;
+  }
+
+  function criarMolHCl() {
+    const g = new THREE.Group();
+    const cl = criarEsfera(0.22, CORES.cl,  [-0.28, 0, 0]);
+    const h  = criarEsfera(0.12, CORES.h,   [ 0.28, 0, 0]);
+    const lig = criarCilindro([-0.28,0,0], [0.28,0,0]);
+    g.add(cl, h, lig);
+    return g;
+  }
+
+  function criarMolMgCl2() {
+    const g = new THREE.Group();
+    const mg  = criarEsfera(0.26, CORES.mg, [0,   0, 0]);
+    const cl1 = criarEsfera(0.20, CORES.cl, [-0.52, 0, 0]);
+    const cl2 = criarEsfera(0.20, CORES.cl, [ 0.52, 0, 0]);
+    const l1  = criarCilindro([-0.52,0,0], [0,0,0]);
+    const l2  = criarCilindro([0,0,0], [0.52,0,0]);
+    g.add(mg, cl1, cl2, l1, l2);
+    return g;
+  }
+
+  function criarMolH2() {
+    const g = new THREE.Group();
+    const h1  = criarEsfera(0.12, CORES.h, [-0.20, 0, 0]);
+    const h2  = criarEsfera(0.12, CORES.h, [ 0.20, 0, 0]);
+    const lig = criarCilindro([-0.20,0,0], [0.20,0,0]);
+    g.add(h1, h2, lig);
+    return g;
+  }
+
+  const fabricas = [criarMolMg, criarMolHCl, criarMolMgCl2, criarMolH2];
+  // Espaçamentos X dos 4 grupos na cena
+  const posXGrupos = [-4.2, -1.8, 1.0, 3.8];
+
+  function renderizarMoleculas() {
+    if (!moleculaGroup) return;
+    while (moleculaGroup.children.length) {
+      const c = moleculaGroup.children[0];
+      c.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+      moleculaGroup.remove(c);
+    }
+
+    coeficientes.forEach((qtd, idx) => {
+      const grupoX = posXGrupos[idx];
+      for (let i = 0; i < qtd; i++) {
+        const mol = fabricas[idx]();
+        const offset = (i - (qtd - 1) / 2) * 1.0;
+        mol.position.set(grupoX, offset, 0);
+        mol.rotation.y = Math.random() * Math.PI;
+        moleculaGroup.add(mol);
+      }
+    });
+
+    // Escala geral para caber na tela
+    const totalWidth = posXGrupos[3] + 2 - posXGrupos[0];
+    const escala = Math.min(1, (window.innerWidth / 120) / totalWidth);
+    moleculaGroup.scale.setScalar(escala * 0.55);
+  }
+
+  let t = 0;
+  function animLoop() {
+    animFrame = requestAnimationFrame(animLoop);
+    t += 0.012;
+
+    if (maoAtiva && moleculaGroup) {
+      const alvo = { x: maoPos.x, y: maoPos.y };
+      moleculaGroup.position.x += (alvo.x - moleculaGroup.position.x) * 0.08;
+      moleculaGroup.position.y += (alvo.y - moleculaGroup.position.y) * 0.08;
+    } else if (moleculaGroup) {
+      moleculaGroup.position.x *= 0.95;
+      moleculaGroup.position.y *= 0.95;
+    }
+
+    // Rotação suave
+    if (moleculaGroup) {
+      moleculaGroup.children.forEach((mol, i) => {
+        mol.rotation.y = t * 0.5 + i * 0.8;
+        mol.rotation.x = Math.sin(t * 0.3 + i) * 0.12;
+      });
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  // ════════════════════════════════════════════════
+  //  CONTROLES DE COEFICIENTE
+  // ════════════════════════════════════════════════
+  function alterar(idx, delta) {
+    if (jogoFinalizado) return;
+    const novo = coeficientes[idx] + delta;
+    if (novo < MIN_COEF || novo > MAX_COEF) return;
+    tocarSom('click');
+    coeficientes[idx] = novo;
+    const el = document.getElementById('c' + idx);
+    el.textContent = novo;
+    // Atualiza aria-label
+    const nomes = ['Magnésio', 'HCl', 'MgCl2', 'H2'];
+    el.setAttribute('aria-label', `Coeficiente do ${nomes[idx]}: ${novo}`);
+    renderizarMoleculas();
+    atualizarBotoes();
+  }
+
+  function atualizarBotoes() {
+    const ids = ['c0','c1','c2','c3'];
+    ids.forEach((id, idx) => {
+      const v = coeficientes[idx];
+      document.querySelectorAll(`[onclick="alterar(${idx},-1)"]`)[0].disabled = v <= MIN_COEF;
+      document.querySelectorAll(`[onclick="alterar(${idx},1)"]`)[0].disabled  = v >= MAX_COEF;
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  //  VERIFICAÇÃO E FEEDBACK
+  // ════════════════════════════════════════════════
+  const dicas = [
+    'Dica: conte as esferas azuis (Cl) no produto MgCl₂.',
+    'Dica: MgCl₂ tem 2 átomos de Cl → precisa de 2 HCl nos reagentes.',
+    'Resposta: Mg + 2 HCl → MgCl₂ + H₂  (coeficientes: 1, 2, 1, 1)'
+  ];
+
+  function verificarGabarito() {
+    if (jogoFinalizado) return;
+    tentativas++;
+    document.getElementById('num-tentativas').textContent = tentativas;
+
+    const acertou = coeficientes.every((v, i) => v === gabarito[i]);
+
+    if (acertou) {
+      const pts = Math.max(100 - (tentativas - 1) * 25, 10);
+      pontos += pts;
+      document.getElementById('num-pontos').textContent = pontos;
+      jogoFinalizado = true;
+      errosSeguidosCont = 0;
+      tocarSom('acerto');
+      mostrarPopup(true, `🎉 PARABÉNS! REAÇÃO BALANCEADA!`,
+        `+${pts} pontos · Mg + 2HCl → MgCl₂ + H₂ equilibrado perfeitamente!`);
+      lancarConfetes();
+    } else {
+      errosSeguidosCont++;
+      tocarSom('erro');
+      const dicaIdx = Math.min(errosSeguidosCont - 1, dicas.length - 1);
+      mostrarPopup(false, '❌ Equação desbalanceada', null, 3500);
+      mostrarDica(dicas[dicaIdx]);
+    }
+  }
+
+  function mostrarPopup(acerto, titulo, detalhe, duracao) {
+    const popup = document.getElementById('popup-feedback');
+    popup.className = 'visivel ' + (acerto ? 'acerto' : 'erro');
+    popup.innerHTML = titulo + (detalhe ? `<div class="popup-detalhe">${detalhe}</div>` : '');
+
+    if (!acerto && duracao) {
+      setTimeout(() => {
+        popup.className = '';
+        setTimeout(() => { popup.style.display = ''; }, 280);
+      }, duracao);
+    }
+  }
+
+  function mostrarDica(txt) {
+    const el = document.getElementById('dica-container');
+    el.textContent = txt;
+    el.className = 'visivel';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, 5000);
+  }
+
+  // ════════════════════════════════════════════════
+  //  CONFETES
+  // ════════════════════════════════════════════════
+  function lancarConfetes() {
+    const cont = document.getElementById('confete-container');
+    const cores = ['#2ecc71','#00d2c8','#f39c12','#e74c3c','#9b59b6','#4a9eff','#fff'];
+    for (let i = 0; i < 80; i++) {
+      const p = document.createElement('div');
+      p.className = 'confete-p';
+      p.style.cssText = `
+        left:${Math.random()*100}vw;
+        background:${cores[i % cores.length]};
+        width:${6 + Math.random()*8}px;
+        height:${6 + Math.random()*8}px;
+        border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+        animation-delay:${Math.random()*1}s;
+        animation-duration:${1.4 + Math.random()*0.8}s;
+      `;
+      cont.appendChild(p);
+    }
+    setTimeout(() => { cont.innerHTML = ''; }, 3000);
+  }
+
+  // ════════════════════════════════════════════════
+  //  MEDIAPIPE — Rastreamento de mão
+  // ════════════════════════════════════════════════
+  let hands;
+
+  function initMediaPipe() {
+    try {
+      hands = new Hands({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+      });
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+      hands.onResults(onResultsMao);
+    } catch(e) {
+      console.warn('MediaPipe não disponível:', e);
+    }
+  }
+
+  function onResultsMao(results) {
+    const dot = document.getElementById('dot-mao');
+    const txt = document.getElementById('txt-mao');
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      const lm = results.multiHandLandmarks[0];
+      const maoAberta =
+        lm[8].y  < lm[6].y  &&
+        lm[12].y < lm[10].y &&
+        lm[16].y < lm[14].y &&
+        lm[20].y < lm[18].y;
+
+      maoDetectada = true;
+      dot.className = 'dot-status ativo';
+
+      if (maoAberta) {
+        txt.textContent = 'Mão aberta detectada';
+        // Converter coordenadas MediaPipe → espaço Three.js
+        const nx = (lm[9].x - 0.5) * -8;
+        const ny = (lm[9].y - 0.5) * -5;
+        maoPos = { x: nx, y: ny };
+        maoAtiva = true;
+      } else {
+        txt.textContent = 'Feche os dedos para ocultar';
+        maoAtiva = false;
+      }
+    } else {
+      maoDetectada = false;
+      maoAtiva = false;
+      dot.className = 'dot-status';
+      txt.textContent = 'Aguardando mão…';
+    }
+  }
+
+  // ════════════════════════════════════════════════
+  //  INICIALIZAÇÃO — COM câmera
+  // ════════════════════════════════════════════════
+  async function iniciarJogoAR() {
+    const intro = document.getElementById('tela-intro');
+    intro.classList.add('oculto');
+
+    document.getElementById('hud').classList.add('visivel');
+    document.getElementById('painel').classList.add('visivel');
+
+    initThree();
+    initMediaPipe();
+
+    const video = document.getElementById('video-bg');
+
+    // Detecta se é mobile para tentar câmera traseira
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    const facingMode = isMobile ? 'environment' : 'user';
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode }
+        });
+        video.srcObject = stream;
+        await video.play();
+        video.classList.add('active');
+
+        // Loop de processamento com throttle (máx ~20fps)
+        let ultimo = 0;
+        const FPS_ALVO = 20;
+        const intervalo = 1000 / FPS_ALVO;
+
+        function processarFrame(ts) {
+          if (ts - ultimo >= intervalo) {
+            ultimo = ts;
+            if (!video.paused && !video.ended && hands) {
+              hands.send({ image: video }).catch(() => {});
             }
+          }
+          requestAnimationFrame(processarFrame);
         }
-    </script>
+        video.onloadedmetadata = () => requestAnimationFrame(processarFrame);
+
+      } catch (err) {
+        console.error('Câmera bloqueada:', err);
+        document.getElementById('overlay-camera').classList.add('visivel');
+      }
+    } else {
+      document.getElementById('overlay-camera').classList.add('visivel');
+    }
+
+    atualizarBotoes();
+  }
+
+  // ════════════════════════════════════════════════
+  //  INICIALIZAÇÃO — SEM câmera (fallback)
+  // ════════════════════════════════════════════════
+  function iniciarSemCamera() {
+    modoSemCamera = true;
+    const intro = document.getElementById('tela-intro');
+    intro.classList.add('oculto');
+    document.getElementById('overlay-camera').classList.remove('visivel');
+    document.getElementById('modo-fallback-bg').classList.add('ativo');
+    document.getElementById('hud').classList.add('visivel');
+    document.getElementById('painel').classList.add('visivel');
+
+    // Esconde indicador de mão
+    document.getElementById('status-mao').style.display = 'none';
+
+    initThree();
+    maoAtiva = false;
+    atualizarBotoes();
+  }
+  </script>
 </body>
 </html>
