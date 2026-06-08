@@ -1,841 +1,134 @@
-cat > /mnt/user-data/outputs/jogocloretodemagnesio_v2.html << 'ENDOFFILE'
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Jogo AR — Cloreto de Magnésio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+import { useState, useRef, useEffect } from "react";
 
-  <!-- TensorFlow.js + Hand Pose Detection (mais estável que @mediapipe/hands) -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.17.0/dist/tf-core.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.17.0/dist/tf-backend-webgl.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.1/dist/hand-pose-detection.min.js"></script>
-  <!-- Three.js para renderização das moléculas -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+const CODE = "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n  <title>Jogo AR \u2014 Cloreto de Magn\u00e9sio</title>\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n  <link href=\"https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;800&display=swap\" rel=\"stylesheet\">\n  <script src=\"https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.17.0/dist/tf-core.min.js\"><\/script>\n  <script src=\"https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.17.0/dist/tf-backend-webgl.min.js\"><\/script>\n  <script src=\"https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.1/dist/hand-pose-detection.min.js\"><\/script>\n  <script src=\"https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js\"><\/script>\n  <style>\n    :root{\n      --mg:#2ecc71;--cl:#4a9eff;--h:#f0f0f0;--mgcl:#10ac84;\n      --accent:#00d2c8;--bg:#0a0e1a;--surf:rgba(255,255,255,0.07);\n      --bord:rgba(255,255,255,0.13);--text:#e8eaf0;--muted:#8892a4;\n      --ok:#2ecc71;--err:#e74c3c;--r:12px;\n      --fu:'Nunito',sans-serif;--fm:'Space Mono',monospace;\n    }\n    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n    html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fu);background:var(--bg);color:var(--text);user-select:none;-webkit-user-select:none;touch-action:manipulation}\n    #vcam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);z-index:0;opacity:0;transition:opacity .8s}\n    #vcam.on{opacity:1}\n    #tc{position:fixed;inset:0;z-index:1;pointer-events:none}\n    #fbg{display:none;position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 40% 50%,#0d1f2d 0%,#0a0e1a 70%)}\n    #fbg.on{display:block}\n    #intro{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;background:linear-gradient(160deg,#0a0e1a,#0d1a2e 60%,#0a1a1a);text-align:center;overflow-y:auto;transition:opacity .5s,visibility .5s}\n    #intro.hide{opacity:0;visibility:hidden;pointer-events:none}\n    .i-badge{font-family:var(--fm);font-size:11px;letter-spacing:3px;color:var(--accent);opacity:.8;margin-bottom:14px}\n    .i-title{font-family:var(--fm);font-size:clamp(20px,6vw,32px);font-weight:700;color:#fff;margin-bottom:6px}\n    .i-eq{font-family:var(--fm);font-size:clamp(13px,4vw,19px);color:var(--accent);letter-spacing:1px;margin-bottom:22px}\n    .legends{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:22px}\n    .lpill{display:flex;align-items:center;gap:7px;background:var(--surf);border:1px solid var(--bord);border-radius:50px;padding:5px 13px;font-size:13px;font-weight:600}\n    .ldot{width:12px;height:12px;border-radius:50%;flex-shrink:0}\n    .steps{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:100%;max-width:480px;margin-bottom:24px}\n    .step{background:var(--surf);border:1px solid var(--bord);border-radius:var(--r);padding:12px;text-align:left}\n    .step-n{font-family:var(--fm);font-size:10px;color:var(--accent);font-weight:700;margin-bottom:5px;letter-spacing:1px}\n    .step-t{font-size:12px;color:var(--muted);line-height:1.4}\n    .btn-p{background:var(--accent);color:#0a0e1a;border:none;padding:13px 36px;border-radius:50px;font-family:var(--fu);font-size:15px;font-weight:800;cursor:pointer;width:100%;max-width:320px;box-shadow:0 0 22px rgba(0,210,200,.3);transition:transform .15s}\n    .btn-p:active{transform:scale(.96)}\n    .btn-s{margin-top:10px;background:transparent;color:var(--muted);border:1px solid var(--bord);padding:10px 28px;border-radius:50px;font-family:var(--fu);font-size:13px;font-weight:600;cursor:pointer;width:100%;max-width:320px}\n    #hud{display:none;position:fixed;top:0;left:0;right:0;z-index:20;background:rgba(10,14,26,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--bord);padding:10px 16px 8px;text-align:center}\n    #hud.on{display:block}\n    #hud h2{font-family:var(--fm);font-size:clamp(12px,3.2vw,15px);color:var(--accent);margin-bottom:2px}\n    #hud p{font-size:11px;color:var(--muted)}\n    #smao{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-top:3px}\n    .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}\n    .dot.ok{background:var(--ok);box-shadow:0 0 5px var(--ok)}\n    #painel{display:none;position:fixed;bottom:0;left:0;right:0;z-index:20;background:rgba(10,14,26,.88);backdrop-filter:blur(10px);border-top:1px solid var(--bord);padding:10px 12px 12px;flex-direction:column;align-items:center;gap:10px}\n    #painel.on{display:flex}\n    #placar{display:flex;gap:12px;width:100%;justify-content:center}\n    .pi{background:var(--surf);border:1px solid var(--bord);border-radius:9px;padding:4px 14px;font-family:var(--fm);font-size:11px;color:var(--muted);text-align:center}\n    .pi span{display:block;font-size:16px;font-weight:700;color:var(--text)}\n    #coefs{display:flex;align-items:center;justify-content:center;gap:clamp(4px,1.5vw,10px);width:100%}\n    .cb{display:flex;flex-direction:column;align-items:center;gap:4px}\n    .cl{font-family:var(--fm);font-size:clamp(11px,3vw,14px);font-weight:700;letter-spacing:.3px}\n    .cr{display:flex;align-items:center;gap:3px}\n    .bpm{width:clamp(26px,7vw,34px);height:clamp(26px,7vw,34px);border-radius:7px;border:1px solid var(--bord);background:rgba(255,255,255,.07);color:var(--text);font-size:clamp(14px,4vw,18px);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s;font-family:var(--fu);-webkit-tap-highlight-color:transparent}\n    .bpm:active{transform:scale(.85);background:var(--accent);color:#0a0e1a}\n    .bpm:disabled{opacity:.22;pointer-events:none}\n    .cv{font-family:var(--fm);font-size:clamp(16px,4.5vw,22px);font-weight:700;min-width:clamp(16px,4vw,22px);text-align:center;color:#fff}\n    .sep{font-family:var(--fm);font-size:clamp(14px,4vw,18px);color:var(--muted);align-self:flex-end;padding-bottom:4px;flex-shrink:0}\n    #bver{width:100%;max-width:400px;background:var(--accent);color:#0a0e1a;border:none;padding:clamp(11px,3vw,14px);border-radius:50px;font-family:var(--fu);font-size:clamp(14px,4vw,16px);font-weight:800;cursor:pointer;box-shadow:0 0 18px rgba(0,210,200,.22);transition:transform .12s;-webkit-tap-highlight-color:transparent}\n    #bver:active{transform:scale(.97)}\n    #popup{position:fixed;top:44%;left:50%;transform:translate(-50%,-50%) scale(.6);z-index:40;display:none;opacity:0;padding:18px 24px;border-radius:16px;font-family:var(--fu);font-weight:800;font-size:clamp(16px,4.5vw,20px);color:#fff;text-align:center;max-width:88vw;pointer-events:none;transition:transform .26s cubic-bezier(.34,1.56,.64,1),opacity .2s}\n    #popup.on{display:block;opacity:1;transform:translate(-50%,-50%) scale(1)}\n    #popup.ok{background:rgba(20,160,90,.95)}\n    #popup.err{background:rgba(200,50,40,.92)}\n    .pd{font-size:clamp(12px,3vw,14px);font-weight:600;margin-top:7px;opacity:.9;line-height:1.45}\n    #dica{display:none;position:fixed;bottom:200px;left:50%;transform:translateX(-50%);z-index:25;background:rgba(10,14,26,.92);border:1px solid rgba(0,210,200,.3);border-radius:var(--r);padding:9px 16px;font-size:13px;color:var(--accent);font-weight:600;max-width:88vw;text-align:center}\n    #dica.on{display:block}\n    #ocam{display:none;position:fixed;inset:0;z-index:60;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:rgba(10,14,26,.96);text-align:center}\n    #ocam.on{display:flex}\n    #ocam strong{font-size:18px;color:var(--text);display:block;margin-bottom:4px}\n    #ocam p{color:var(--muted);max-width:340px;font-size:14px;line-height:1.55}\n    #conf{position:fixed;inset:0;z-index:45;pointer-events:none;overflow:hidden}\n    .cp{position:absolute;top:-14px;opacity:0;animation:fall 1.8s ease-in forwards}\n    @keyframes fall{0%{opacity:1;transform:translateY(0) rotate(0deg)}100%{opacity:0;transform:translateY(105vh) rotate(720deg)}}\n  </style>\n</head>\n<body>\n  <video id=\"vcam\" autoplay playsinline muted aria-hidden=\"true\"></video>\n  <div id=\"fbg\" aria-hidden=\"true\"></div>\n  <canvas id=\"tc\" aria-hidden=\"true\"></canvas>\n  <div id=\"conf\" aria-hidden=\"true\"></div>\n\n  <div id=\"intro\" role=\"main\">\n    <div class=\"i-badge\">Qu\u00edmica \u00b7 AR</div>\n    <h1 class=\"i-title\">Balan\u00e7o Qu\u00edmico</h1>\n    <div class=\"i-eq\">Mg + HCl \u2192 MgCl\u2082 + H\u2082</div>\n    <div class=\"legends\">\n      <div class=\"lpill\"><div class=\"ldot\" style=\"background:var(--mg)\"></div>Verde = Mg</div>\n      <div class=\"lpill\"><div class=\"ldot\" style=\"background:var(--cl)\"></div>Azul = Cl</div>\n      <div class=\"lpill\"><div class=\"ldot\" style=\"background:var(--h)\"></div>Branco = H</div>\n    </div>\n    <div class=\"steps\">\n      <div class=\"step\"><div class=\"step-n\">PASSO 01</div><div class=\"step-t\">Permita o acesso \u00e0 c\u00e2mera frontal</div></div>\n      <div class=\"step\"><div class=\"step-n\">PASSO 02</div><div class=\"step-t\">Mostre a m\u00e3o aberta \u00e0 c\u00e2mera</div></div>\n      <div class=\"step\"><div class=\"step-n\">PASSO 03</div><div class=\"step-t\">Ajuste os coeficientes com + e \u2212</div></div>\n      <div class=\"step\"><div class=\"step-n\">PASSO 04</div><div class=\"step-t\">Clique em Verificar quando pronto</div></div>\n    </div>\n    <button class=\"btn-p\" onclick=\"iniciarAR()\">Iniciar com c\u00e2mera</button>\n    <button class=\"btn-s\" onclick=\"iniciarSemCam()\">Jogar sem c\u00e2mera</button>\n  </div>\n\n  <header id=\"hud\">\n    <h2>Mg + HCl \u2192 MgCl\u2082 + H\u2082</h2>\n    <p>Mostre a m\u00e3o aberta para ver as mol\u00e9culas</p>\n    <div id=\"smao\"><div class=\"dot\" id=\"dot\"></div><span id=\"tmao\">Aguardando m\u00e3o\u2026</span></div>\n  </header>\n\n  <div id=\"popup\" role=\"alert\"></div>\n  <div id=\"dica\" role=\"status\"></div>\n\n  <section id=\"painel\">\n    <div id=\"placar\">\n      <div class=\"pi\">Tentativas<span id=\"nt\">0</span></div>\n      <div class=\"pi\">Pontos<span id=\"np\">0</span></div>\n    </div>\n    <div id=\"coefs\">\n      <div class=\"cb\"><span class=\"cl\" style=\"color:var(--mg)\">Mg</span><div class=\"cr\"><button class=\"bpm\" onclick=\"alt(0,-1)\">\u2212</button><span class=\"cv\" id=\"c0\">1</span><button class=\"bpm\" onclick=\"alt(0,1)\">+</button></div></div>\n      <span class=\"sep\">+</span>\n      <div class=\"cb\"><span class=\"cl\" style=\"color:var(--cl)\">HCl</span><div class=\"cr\"><button class=\"bpm\" onclick=\"alt(1,-1)\">\u2212</button><span class=\"cv\" id=\"c1\">1</span><button class=\"bpm\" onclick=\"alt(1,1)\">+</button></div></div>\n      <span class=\"sep\">\u2192</span>\n      <div class=\"cb\"><span class=\"cl\" style=\"color:var(--mgcl)\">MgCl\u2082</span><div class=\"cr\"><button class=\"bpm\" onclick=\"alt(2,-1)\">\u2212</button><span class=\"cv\" id=\"c2\">1</span><button class=\"bpm\" onclick=\"alt(2,1)\">+</button></div></div>\n      <span class=\"sep\">+</span>\n      <div class=\"cb\"><span class=\"cl\" style=\"color:#ddd\">H\u2082</span><div class=\"cr\"><button class=\"bpm\" onclick=\"alt(3,-1)\">\u2212</button><span class=\"cv\" id=\"c3\">1</span><button class=\"bpm\" onclick=\"alt(3,1)\">+</button></div></div>\n    </div>\n    <button id=\"bver\" onclick=\"verificar()\">Verificar Balanceamento</button>\n  </section>\n\n  <div id=\"ocam\">\n    <p><strong>C\u00e2mera n\u00e3o dispon\u00edvel</strong>Verifique as permiss\u00f5es ou jogue no modo sem c\u00e2mera.</p>\n    <button class=\"btn-p\" onclick=\"iniciarSemCam()\">Jogar sem c\u00e2mera</button>\n  </div>\n\n<script>\nconst GABA=[1,2,1,1];let coef=[1,1,1,1];let tent=0,pts=0,erros=0,fim=false,semCam=false;let maoAtiva=false,maoPos={x:0,y:0};let audioCtx=null;\nfunction som(t){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(t==='click'){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type='sine';o.frequency.value=600;g.gain.setValueAtTime(.06,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+.07);o.start();o.stop(audioCtx.currentTime+.08);}else if(t==='err'){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type='sawtooth';o.frequency.setValueAtTime(180,audioCtx.currentTime);o.frequency.linearRampToValueAtTime(100,audioCtx.currentTime+.28);g.gain.setValueAtTime(.1,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+.3);o.start();o.stop(audioCtx.currentTime+.32);}else if(t==='ok'){[523,659,784].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type='sine';o.frequency.value=f;const s=audioCtx.currentTime+i*.14;g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.16,s+.05);g.gain.linearRampToValueAtTime(0,s+.4);o.start(s);o.stop(s+.45);});}}catch(e){}}\nlet renderer,scene,camera,mols;const COR={mg:0x2ecc71,cl:0x4a9eff,h:0xf0f0f0,bond:0x888888};\nfunction initThree(){const cv=document.getElementById('tc');renderer=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,100);camera.position.z=5;scene.add(new THREE.AmbientLight(0xffffff,.75));const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(2,4,3);scene.add(dl);const dl2=new THREE.DirectionalLight(0x00d2c8,.4);dl2.position.set(-3,-2,1);scene.add(dl2);mols=new THREE.Group();mols.visible=false;scene.add(mols);window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);buildMols();});buildMols();loop3d();}\nfunction esfera(r,c,p){const m=new THREE.Mesh(new THREE.SphereGeometry(r,20,20),new THREE.MeshPhongMaterial({color:c,shininess:70}));m.position.set(...p);return m;}\nfunction bond(a,b){const dir=new THREE.Vector3(...b).sub(new THREE.Vector3(...a));const len=dir.length();const m=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,len,8),new THREE.MeshPhongMaterial({color:COR.bond}));m.position.set((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());return m;}\nfunction molMg(){const g=new THREE.Group();g.add(esfera(.28,COR.mg,[0,0,0]));return g;}\nfunction molHCl(){const g=new THREE.Group();g.add(esfera(.20,COR.cl,[-0.26,0,0]));g.add(esfera(.11,COR.h,[0.26,0,0]));g.add(bond([-0.26,0,0],[0.26,0,0]));return g;}\nfunction molMgCl2(){const g=new THREE.Group();g.add(esfera(.24,COR.mg,[0,0,0]));g.add(esfera(.18,COR.cl,[-0.50,0,0]));g.add(esfera(.18,COR.cl,[0.50,0,0]));g.add(bond([-0.50,0,0],[0,0,0]));g.add(bond([0,0,0],[0.50,0,0]));return g;}\nfunction molH2(){const g=new THREE.Group();g.add(esfera(.11,COR.h,[-0.18,0,0]));g.add(esfera(.11,COR.h,[0.18,0,0]));g.add(bond([-0.18,0,0],[0.18,0,0]));return g;}\nconst FABS=[molMg,molHCl,molMgCl2,molH2];\nfunction buildMols(){if(!mols)return;mols.children.forEach(c=>c.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()}));mols.clear();const fovRad=55*Math.PI/180;const distZ=5;const alturaVis=2*Math.tan(fovRad/2)*distZ;const larguraVis=alturaVis*(innerWidth/innerHeight);const espGrupo=larguraVis/4.5;const xInicio=-(espGrupo*3/2);coef.forEach((qtd,idx)=>{const gx=xInicio+idx*espGrupo;const espY=Math.min(alturaVis/(qtd+1),1.1);for(let i=0;i<qtd;i++){const mol=FABS[idx]();const oy=(i-(qtd-1)/2)*espY;mol.position.set(gx,oy,0);mol.rotation.y=Math.random()*Math.PI;mols.add(mol);}});}\nlet tick=0;\nfunction loop3d(){requestAnimationFrame(loop3d);tick+=.012;if(mols){if(maoAtiva){mols.position.x+=(maoPos.x-mols.position.x)*.09;mols.position.y+=(maoPos.y-mols.position.y)*.09;}else{mols.position.x*=.92;mols.position.y*=.92;}mols.children.forEach((m,i)=>{m.rotation.y=tick*.5+i*.85;m.rotation.x=Math.sin(tick*.3+i)*.1;});}renderer.render(scene,camera);}\nfunction alt(i,d){if(fim)return;const v=coef[i]+d;if(v<1||v>4)return;som('click');coef[i]=v;document.getElementById('c'+i).textContent=v;buildMols();updBtns();}\nfunction updBtns(){for(let i=0;i<4;i++){document.querySelectorAll('[onclick=\"alt('+i+',-1)\"]')[0].disabled=coef[i]<=1;document.querySelectorAll('[onclick=\"alt('+i+',1)\"]')[0].disabled=coef[i]>=4;}}\nconst DICAS=['Dica: observe as esferas azuis (Cl) no produto MgCl\u2082.','Dica: MgCl\u2082 tem 2 Cl \u2192 s\u00e3o precisos 2 HCl nos reagentes.','Resposta: coeficientes 1, 2, 1, 1  (Mg + 2HCl \u2192 MgCl\u2082 + H\u2082)'];\nfunction verificar(){if(fim)return;tent++;document.getElementById('nt').textContent=tent;const ok=coef.every((v,i)=>v===GABA[i]);if(ok){const p=Math.max(100-(tent-1)*25,10);pts+=p;document.getElementById('np').textContent=pts;fim=true;erros=0;som('ok');showPopup(true,'\uD83C\uDF89 PARAB\u00c9NS! REA\u00c7\u00c3O BALANCEADA!','+'+p+' pontos \u00b7 1 Mg + 2 HCl \u2192 1 MgCl\u2082 + 1 H\u2082');confetes();}else{erros++;som('err');const di=Math.min(erros-1,DICAS.length-1);showPopup(false,'\u274c Equa\u00e7\u00e3o desbalanceada',null,3200);showDica(DICAS[di]);}}\nfunction showPopup(ok,t,d,dur){const p=document.getElementById('popup');p.className='on '+(ok?'ok':'err');p.innerHTML=t+(d?'<div class=\"pd\">'+d+'</div>':'');if(!ok&&dur)setTimeout(()=>{p.className='';},dur);}\nfunction showDica(tx){const el=document.getElementById('dica');el.textContent=tx;el.className='on';clearTimeout(el._t);el._t=setTimeout(()=>el.className='',5000);}\nfunction confetes(){const c=document.getElementById('conf');const cs=['#2ecc71','#00d2c8','#f39c12','#e74c3c','#9b59b6','#4a9eff','#fff'];for(let i=0;i<80;i++){const p=document.createElement('div');p.className='cp';const sz=6+Math.random()*8;p.style.cssText='left:'+Math.random()*100+'vw;background:'+cs[i%cs.length]+';width:'+sz+'px;height:'+sz+'px;border-radius:'+(Math.random()>.5?'50%':'2px')+';animation-delay:'+Math.random()+'s;animation-duration:'+(1.4+Math.random()*.8)+'s;';c.appendChild(p);}setTimeout(()=>c.innerHTML='',3000);}\nlet detector=null;let video=null;let auxCanvas=null,auxCtx=null;\nasync function initHandDetector(){try{await tf.setBackend('webgl');await tf.ready();const model=handPoseDetection.SupportedModels.MediaPipeHands;const cfg={runtime:'tfjs',modelType:'lite',maxHands:1};detector=await handPoseDetection.createDetector(model,cfg);console.log('Detector pronto.');return true;}catch(e){console.error('HandPose falhou:',e);return false;}}\nfunction getFrameEspelhado(){if(!video||!video.videoWidth)return null;if(!auxCanvas){auxCanvas=document.createElement('canvas');auxCtx=auxCanvas.getContext('2d');}if(auxCanvas.width!==video.videoWidth||auxCanvas.height!==video.videoHeight){auxCanvas.width=video.videoWidth;auxCanvas.height=video.videoHeight;}auxCtx.save();auxCtx.translate(auxCanvas.width,0);auxCtx.scale(-1,1);auxCtx.drawImage(video,0,0);auxCtx.restore();return auxCanvas;}\nasync function loopDeteccao(){if(!detector||!video||video.paused||video.ended||!video.videoWidth){requestAnimationFrame(loopDeteccao);return;}const frame=getFrameEspelhado();if(!frame){requestAnimationFrame(loopDeteccao);return;}try{const hands=await detector.estimateHands(frame,{flipHorizontal:false});processarMao(hands);}catch(e){}setTimeout(()=>requestAnimationFrame(loopDeteccao),50);}\nfunction processarMao(hands){const dot=document.getElementById('dot');const tm=document.getElementById('tmao');if(hands&&hands.length>0){const kp=hands[0].keypoints;const aberta=kp[8].y<kp[6].y&&kp[12].y<kp[10].y&&kp[16].y<kp[14].y&&kp[20].y<kp[18].y;dot.className='dot ok';if(aberta){tm.textContent='M\u00e3o aberta detectada';const fovRad=55*Math.PI/180;const altVis=2*Math.tan(fovRad/2)*5;const largVis=altVis*(innerWidth/innerHeight);const nx=(kp[9].x/video.videoWidth-.5)*largVis;const ny=(.5-kp[9].y/video.videoHeight)*altVis;maoPos={x:nx,y:ny};maoAtiva=true;if(mols)mols.visible=true;}else{tm.textContent='Abra a m\u00e3o para ver as mol\u00e9culas';maoAtiva=false;if(mols)mols.visible=false;}}else{dot.className='dot';tm.textContent='Aguardando m\u00e3o\u2026';maoAtiva=false;if(mols)mols.visible=false;}}\nasync function iniciarAR(){document.getElementById('intro').classList.add('hide');document.getElementById('hud').classList.add('on');document.getElementById('painel').classList.add('on');initThree();updBtns();video=document.getElementById('vcam');if(!navigator.mediaDevices?.getUserMedia){document.getElementById('ocam').classList.add('on');return;}try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}});video.srcObject=stream;await video.play();video.classList.add('on');await new Promise(res=>{if(video.videoWidth>0){res();}else{video.addEventListener('loadeddata',res,{once:true});}});const ok=await initHandDetector();if(ok){loopDeteccao();}else{document.getElementById('smao').style.display='none';if(mols)mols.visible=true;}}catch(err){console.error('C\u00e2mera:',err);document.getElementById('ocam').classList.add('on');}}\nfunction iniciarSemCam(){semCam=true;document.getElementById('intro').classList.add('hide');document.getElementById('ocam').classList.remove('on');document.getElementById('fbg').classList.add('on');document.getElementById('hud').classList.add('on');document.getElementById('painel').classList.add('on');document.getElementById('smao').style.display='none';initThree();if(mols)mols.visible=true;updBtns();}\n<\/script>\n</body>\n</html>";
 
-  <style>
-    :root {
-      --mg:    #2ecc71;
-      --cl:    #4a9eff;
-      --h:     #f0f0f0;
-      --mgcl:  #10ac84;
-      --accent:#00d2c8;
-      --bg:    #0a0e1a;
-      --surf:  rgba(255,255,255,0.07);
-      --bord:  rgba(255,255,255,0.13);
-      --text:  #e8eaf0;
-      --muted: #8892a4;
-      --ok:    #2ecc71;
-      --err:   #e74c3c;
-      --r:     12px;
-      --fu:    'Nunito', sans-serif;
-      --fm:    'Space Mono', monospace;
+export default function App() {
+  const [tab, setTab] = useState("jogo");
+  const [copiado, setCopiado] = useState(false);
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    if (tab === "jogo" && iframeRef.current) {
+      const blob = new Blob([CODE], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      iframeRef.current.src = url;
+      return () => URL.revokeObjectURL(url);
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  }, [tab]);
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: var(--fu);
-      background: var(--bg);
-      color: var(--text);
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
-    }
+  function copiar() {
+    navigator.clipboard.writeText(CODE).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 3000);
+    });
+  }
 
-    /* ── fundo vídeo ── */
-    #vcam {
-      position: fixed; inset: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-      z-index: 0;
-      opacity: 0;
-      transition: opacity .8s;
-    }
-    #vcam.on { opacity: 1; }
+  function baixar() {
+    const blob = new Blob([CODE], { type: "text/html" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "index.html";
+    a.click();
+  }
 
-    /* ── canvas three.js ── */
-    #tc {
-      position: fixed; inset: 0;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    /* ── fundo fallback ── */
-    #fbg {
-      display: none;
-      position: fixed; inset: 0;
-      z-index: 0;
-      background: radial-gradient(ellipse at 40% 50%, #0d1f2d 0%, #0a0e1a 70%);
-    }
-    #fbg.on { display: block; }
-
-    /* ══════════════════════════════
-       TELA DE INTRODUÇÃO
-    ══════════════════════════════ */
-    #intro {
-      position: fixed; inset: 0; z-index: 50;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 0;
-      padding: 20px 16px;
-      background: linear-gradient(160deg,#0a0e1a,#0d1a2e 60%,#0a1a1a);
-      text-align: center;
-      overflow-y: auto;
-      transition: opacity .5s, visibility .5s;
-    }
-    #intro.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-
-    .i-badge {
-      font-family: var(--fm); font-size: 11px; letter-spacing: 3px;
-      color: var(--accent); opacity: .8; margin-bottom: 14px;
-    }
-    .i-title {
-      font-family: var(--fm); font-size: clamp(20px,6vw,32px); font-weight: 700;
-      color: #fff; margin-bottom: 6px;
-    }
-    .i-eq {
-      font-family: var(--fm); font-size: clamp(13px,4vw,19px);
-      color: var(--accent); letter-spacing: 1px; margin-bottom: 22px;
-    }
-    .legends {
-      display: flex; gap: 10px; flex-wrap: wrap;
-      justify-content: center; margin-bottom: 22px;
-    }
-    .lpill {
-      display: flex; align-items: center; gap: 7px;
-      background: var(--surf); border: 1px solid var(--bord);
-      border-radius: 50px; padding: 5px 13px;
-      font-size: 13px; font-weight: 600;
-    }
-    .ldot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px; width: 100%; max-width: 480px;
-      margin-bottom: 24px;
-    }
-    .step {
-      background: var(--surf); border: 1px solid var(--bord);
-      border-radius: var(--r); padding: 12px; text-align: left;
-    }
-    .step-n { font-family: var(--fm); font-size: 10px; color: var(--accent); font-weight: 700; margin-bottom: 5px; letter-spacing: 1px; }
-    .step-t { font-size: 12px; color: var(--muted); line-height: 1.4; }
-
-    .btn-p {
-      background: var(--accent); color: #0a0e1a;
-      border: none; padding: 13px 36px; border-radius: 50px;
-      font-family: var(--fu); font-size: 15px; font-weight: 800;
-      cursor: pointer; width: 100%; max-width: 320px;
-      box-shadow: 0 0 22px rgba(0,210,200,.3);
-      transition: transform .15s, box-shadow .15s;
-    }
-    .btn-p:active { transform: scale(.96); }
-
-    .btn-s {
-      margin-top: 10px;
-      background: transparent; color: var(--muted);
-      border: 1px solid var(--bord);
-      padding: 10px 28px; border-radius: 50px;
-      font-family: var(--fu); font-size: 13px; font-weight: 600;
-      cursor: pointer; width: 100%; max-width: 320px;
-      transition: color .2s, border-color .2s;
-    }
-    .btn-s:active { color: var(--text); }
-
-    /* ══════════════════════════════
-       HUD TOPO
-    ══════════════════════════════ */
-    #hud {
-      display: none;
-      position: fixed; top: 0; left: 0; right: 0;
-      z-index: 20;
-      background: rgba(10,14,26,.88);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--bord);
-      padding: 10px 16px 8px;
-      text-align: center;
-    }
-    #hud.on { display: block; }
-    #hud h2 {
-      font-family: var(--fm); font-size: clamp(12px,3.2vw,15px);
-      color: var(--accent); margin-bottom: 2px;
-    }
-    #hud p { font-size: 11px; color: var(--muted); }
-    #smao {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 11px; color: var(--muted); margin-top: 3px;
-    }
-    .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--muted); flex-shrink: 0; transition: background .3s;
-    }
-    .dot.ok { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
-
-    /* ══════════════════════════════
-       PAINEL DE CONTROLES (FUNDO)
-    ══════════════════════════════ */
-    #painel {
-      display: none;
-      position: fixed; bottom: 0; left: 0; right: 0;
-      z-index: 20;
-      background: rgba(10,14,26,.88);
-      backdrop-filter: blur(10px);
-      border-top: 1px solid var(--bord);
-      padding: 10px 12px 12px;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    }
-    #painel.on { display: flex; }
-
-    /* placar */
-    #placar {
-      display: flex; gap: 12px; width: 100%;
-      justify-content: center;
-    }
-    .pi {
-      background: var(--surf); border: 1px solid var(--bord);
-      border-radius: 9px; padding: 4px 14px;
-      font-family: var(--fm); font-size: 11px; color: var(--muted); text-align: center;
-    }
-    .pi span { display: block; font-size: 16px; font-weight: 700; color: var(--text); }
-
-    /* linha de coeficientes */
-    #coefs {
-      display: flex; align-items: center;
-      justify-content: center;
-      gap: clamp(4px, 1.5vw, 10px);
-      width: 100%;
-    }
-    .cb { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-    .cl {
-      font-family: var(--fm); font-size: clamp(11px,3vw,14px);
-      font-weight: 700; letter-spacing: .3px;
-    }
-    .cr { display: flex; align-items: center; gap: 3px; }
-    .bpm {
-      width: clamp(26px,7vw,34px); height: clamp(26px,7vw,34px);
-      border-radius: 7px; border: 1px solid var(--bord);
-      background: rgba(255,255,255,.07); color: var(--text);
-      font-size: clamp(14px,4vw,18px); font-weight: 700;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      transition: background .1s, transform .1s;
-      font-family: var(--fu); line-height: 1;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .bpm:active { transform: scale(.85); background: var(--accent); color: #0a0e1a; }
-    .bpm:disabled { opacity: .22; pointer-events: none; }
-    .cv {
-      font-family: var(--fm); font-size: clamp(16px,4.5vw,22px);
-      font-weight: 700; min-width: clamp(16px,4vw,22px); text-align: center; color: #fff;
-    }
-    .sep {
-      font-family: var(--fm); font-size: clamp(14px,4vw,18px);
-      color: var(--muted); align-self: flex-end; padding-bottom: 4px;
-      flex-shrink: 0;
-    }
-
-    /* botão verificar */
-    #bver {
-      width: 100%; max-width: 400px;
-      background: var(--accent); color: #0a0e1a;
-      border: none; padding: clamp(11px,3vw,14px);
-      border-radius: 50px; font-family: var(--fu);
-      font-size: clamp(14px,4vw,16px); font-weight: 800;
-      cursor: pointer; box-shadow: 0 0 18px rgba(0,210,200,.22);
-      transition: transform .12s, box-shadow .15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-    #bver:active { transform: scale(.97); }
-
-    /* ══════════════════════════════
-       POPUP FEEDBACK
-    ══════════════════════════════ */
-    #popup {
-      position: fixed; top: 44%; left: 50%;
-      transform: translate(-50%,-50%) scale(.6);
-      z-index: 40; display: none; opacity: 0;
-      padding: 18px 24px; border-radius: 16px;
-      font-family: var(--fu); font-weight: 800;
-      font-size: clamp(16px,4.5vw,20px);
-      color: #fff; text-align: center;
-      max-width: 88vw;
-      pointer-events: none;
-      transition: transform .26s cubic-bezier(.34,1.56,.64,1), opacity .2s;
-    }
-    #popup.on { display: block; opacity: 1; transform: translate(-50%,-50%) scale(1); }
-    #popup.ok  { background: rgba(20,160,90,.95); }
-    #popup.err { background: rgba(200,50,40,.92); }
-    .pd { font-size: clamp(12px,3vw,14px); font-weight: 600; margin-top: 7px; opacity: .9; line-height: 1.45; }
-
-    /* ── dica progressiva ── */
-    #dica {
-      display: none;
-      position: fixed; bottom: 200px; left: 50%;
-      transform: translateX(-50%);
-      z-index: 25;
-      background: rgba(10,14,26,.92);
-      border: 1px solid rgba(0,210,200,.3);
-      border-radius: var(--r);
-      padding: 9px 16px; font-size: 13px;
-      color: var(--accent); font-weight: 600;
-      max-width: 88vw; text-align: center;
-    }
-    #dica.on { display: block; }
-
-    /* ── overlay câmera ── */
-    #ocam {
-      display: none;
-      position: fixed; inset: 0; z-index: 60;
-      flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; padding: 24px;
-      background: rgba(10,14,26,.96); text-align: center;
-    }
-    #ocam.on { display: flex; }
-    #ocam strong { font-size: 18px; color: var(--text); display: block; margin-bottom: 4px; }
-    #ocam p { color: var(--muted); max-width: 340px; font-size: 14px; line-height: 1.55; }
-
-    /* ── confetes ── */
-    #conf { position: fixed; inset: 0; z-index: 45; pointer-events: none; overflow: hidden; }
-    .cp {
-      position: absolute; top: -14px; opacity: 0;
-      animation: fall 1.8s ease-in forwards;
-    }
-    @keyframes fall {
-      0%   { opacity:1; transform:translateY(0) rotate(0deg); }
-      100% { opacity:0; transform:translateY(105vh) rotate(720deg); }
-    }
-  </style>
-</head>
-<body>
-
-  <video id="vcam" autoplay playsinline muted aria-hidden="true"></video>
-  <div id="fbg" aria-hidden="true"></div>
-  <canvas id="tc" aria-hidden="true"></canvas>
-  <div id="conf" aria-hidden="true"></div>
-
-  <!-- ══ INTRO ══ -->
-  <div id="intro" role="main">
-    <div class="i-badge">Química · AR</div>
-    <h1 class="i-title">Balanço Químico</h1>
-    <div class="i-eq" aria-label="Mg mais HCl forma MgCl2 mais H2">Mg + HCl → MgCl₂ + H₂</div>
-
-    <div class="legends">
-      <div class="lpill"><div class="ldot" style="background:var(--mg)"></div>Verde = Mg</div>
-      <div class="lpill"><div class="ldot" style="background:var(--cl)"></div>Azul = Cl</div>
-      <div class="lpill"><div class="ldot" style="background:var(--h)"></div>Branco = H</div>
-    </div>
-
-    <div class="steps">
-      <div class="step"><div class="step-n">PASSO 01</div><div class="step-t">Permita o acesso à câmera frontal</div></div>
-      <div class="step"><div class="step-n">PASSO 02</div><div class="step-t">Mostre a mão aberta à câmera</div></div>
-      <div class="step"><div class="step-n">PASSO 03</div><div class="step-t">Ajuste os coeficientes com + e −</div></div>
-      <div class="step"><div class="step-n">PASSO 04</div><div class="step-t">Clique em Verificar quando pronto</div></div>
-    </div>
-
-    <button class="btn-p" onclick="iniciarAR()">Iniciar com câmera</button>
-    <button class="btn-s" onclick="iniciarSemCam()">Jogar sem câmera</button>
-  </div>
-
-  <!-- ══ HUD ══ -->
-  <header id="hud" aria-label="Reação química">
-    <h2>Mg + HCl → MgCl₂ + H₂</h2>
-    <p>Mostre a mão aberta para ver as moléculas</p>
-    <div id="smao" aria-live="polite">
-      <div class="dot" id="dot"></div>
-      <span id="tmao">Aguardando mão…</span>
-    </div>
-  </header>
-
-  <!-- ══ POPUP ══ -->
-  <div id="popup" role="alert" aria-live="assertive"></div>
-
-  <!-- ══ DICA ══ -->
-  <div id="dica" role="status" aria-live="polite"></div>
-
-  <!-- ══ PAINEL ══ -->
-  <section id="painel" aria-label="Controles">
-    <div id="placar">
-      <div class="pi">Tentativas<span id="nt">0</span></div>
-      <div class="pi">Pontos<span id="np">0</span></div>
-    </div>
-
-    <div id="coefs" role="group" aria-label="Coeficientes">
-      <!-- Mg -->
-      <div class="cb">
-        <span class="cl" style="color:var(--mg)">Mg</span>
-        <div class="cr">
-          <button class="bpm" onclick="alt(0,-1)" aria-label="Diminuir Mg">−</button>
-          <span class="cv" id="c0">1</span>
-          <button class="bpm" onclick="alt(0,1)"  aria-label="Aumentar Mg">+</button>
-        </div>
-      </div>
-      <span class="sep">+</span>
-      <!-- HCl -->
-      <div class="cb">
-        <span class="cl" style="color:var(--cl)">HCl</span>
-        <div class="cr">
-          <button class="bpm" onclick="alt(1,-1)" aria-label="Diminuir HCl">−</button>
-          <span class="cv" id="c1">1</span>
-          <button class="bpm" onclick="alt(1,1)"  aria-label="Aumentar HCl">+</button>
-        </div>
-      </div>
-      <span class="sep">→</span>
-      <!-- MgCl2 -->
-      <div class="cb">
-        <span class="cl" style="color:var(--mgcl)">MgCl₂</span>
-        <div class="cr">
-          <button class="bpm" onclick="alt(2,-1)" aria-label="Diminuir MgCl2">−</button>
-          <span class="cv" id="c2">1</span>
-          <button class="bpm" onclick="alt(2,1)"  aria-label="Aumentar MgCl2">+</button>
-        </div>
-      </div>
-      <span class="sep">+</span>
-      <!-- H2 -->
-      <div class="cb">
-        <span class="cl" style="color:#ddd">H₂</span>
-        <div class="cr">
-          <button class="bpm" onclick="alt(3,-1)" aria-label="Diminuir H2">−</button>
-          <span class="cv" id="c3">1</span>
-          <button class="bpm" onclick="alt(3,1)"  aria-label="Aumentar H2">+</button>
-        </div>
-      </div>
-    </div>
-
-    <button id="bver" onclick="verificar()" aria-label="Verificar balanceamento">Verificar Balanceamento</button>
-  </section>
-
-  <!-- ══ OVERLAY CÂMERA ══ -->
-  <div id="ocam" role="alertdialog">
-    <p><strong>Câmera não disponível</strong>Verifique as permissões ou jogue no modo sem câmera.</p>
-    <button class="btn-p" onclick="iniciarSemCam()">Jogar sem câmera</button>
-  </div>
-
-<script>
-// ════════════════════════════════════════
-//  ESTADO
-// ════════════════════════════════════════
-const GABA = [1,2,1,1];
-let coef = [1,1,1,1];
-let tent=0, pts=0, erros=0, fim=false, semCam=false;
-let maoAtiva=false, maoPos={x:0,y:0};
-let audioCtx=null;
-
-// ════════════════════════════════════════
-//  ÁUDIO
-// ════════════════════════════════════════
-function som(t){
-  try{
-    if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    if(t==='click'){
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-      o.connect(g);g.connect(audioCtx.destination);
-      o.type='sine';o.frequency.value=600;
-      g.gain.setValueAtTime(.06,audioCtx.currentTime);
-      g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+.07);
-      o.start();o.stop(audioCtx.currentTime+.08);
-    }else if(t==='err'){
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-      o.connect(g);g.connect(audioCtx.destination);
-      o.type='sawtooth';
-      o.frequency.setValueAtTime(180,audioCtx.currentTime);
-      o.frequency.linearRampToValueAtTime(100,audioCtx.currentTime+.28);
-      g.gain.setValueAtTime(.1,audioCtx.currentTime);
-      g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+.3);
-      o.start();o.stop(audioCtx.currentTime+.32);
-    }else if(t==='ok'){
-      [523,659,784].forEach((f,i)=>{
-        const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-        o.connect(g);g.connect(audioCtx.destination);
-        o.type='sine';o.frequency.value=f;
-        const s=audioCtx.currentTime+i*.14;
-        g.gain.setValueAtTime(0,s);
-        g.gain.linearRampToValueAtTime(.16,s+.05);
-        g.gain.linearRampToValueAtTime(0,s+.4);
-        o.start(s);o.stop(s+.45);
-      });
-    }
-  }catch(e){}
-}
-
-// ════════════════════════════════════════
-//  THREE.JS
-// ════════════════════════════════════════
-let renderer,scene,camera,mols;
-const COR={mg:0x2ecc71,cl:0x4a9eff,h:0xf0f0f0,bond:0x888888};
-
-function initThree(){
-  const cv=document.getElementById('tc');
-  renderer=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.setClearColor(0,0);
-  scene=new THREE.Scene();
-  camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,100);
-  camera.position.z=5;
-  scene.add(new THREE.AmbientLight(0xffffff,.75));
-  const dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(2,4,3);scene.add(dl);
-  const dl2=new THREE.DirectionalLight(0x00d2c8,.4);dl2.position.set(-3,-2,1);scene.add(dl2);
-  mols=new THREE.Group();mols.visible=false;scene.add(mols);
-  window.addEventListener('resize',()=>{
-    camera.aspect=innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth,innerHeight);
-    buildMols();
+  const tabStyle = (ativo) => ({
+    padding: "8px 20px",
+    borderRadius: "8px 8px 0 0",
+    border: "0.5px solid var(--color-border-tertiary)",
+    borderBottom: ativo ? "2px solid var(--color-text-primary)" : "none",
+    background: ativo ? "var(--color-background-primary)" : "var(--color-background-secondary)",
+    color: ativo ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+    cursor: "pointer",
+    fontWeight: ativo ? 500 : 400,
+    fontSize: 14,
   });
-  buildMols();
-  loop3d();
-}
 
-function esfera(r,c,p){
-  const m=new THREE.Mesh(
-    new THREE.SphereGeometry(r,20,20),
-    new THREE.MeshPhongMaterial({color:c,shininess:70})
+  return (
+    <div style={{ padding: "1rem 0" }}>
+
+      {/* Abas */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 0 }}>
+        <button style={tabStyle(tab === "jogo")} onClick={() => setTab("jogo")}>▶ Jogo ao vivo</button>
+        <button style={tabStyle(tab === "codigo")} onClick={() => setTab("codigo")}>{"</>"} Código</button>
+        <button style={tabStyle(tab === "github")} onClick={() => setTab("github")}>↑ GitHub</button>
+      </div>
+
+      <div style={{ border: "0.5px solid var(--color-border-tertiary)", borderRadius: "0 8px 8px 8px", overflow: "hidden", background: "var(--color-background-primary)" }}>
+
+        {/* ABA: JOGO */}
+        {tab === "jogo" && (
+          <div>
+            <div style={{ background: "var(--color-background-secondary)", padding: "8px 14px", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+                Modo de demonstração — câmera não funciona em iframe. Use o modo <strong style={{ color: "var(--color-text-primary)" }}>sem câmera</strong> para testar.
+              </span>
+            </div>
+            <iframe
+              ref={iframeRef}
+              style={{ width: "100%", height: 520, border: "none", display: "block" }}
+              allow="camera; microphone"
+              title="Jogo AR Cloreto de Magnésio"
+            />
+          </div>
+        )}
+
+        {/* ABA: CÓDIGO */}
+        {tab === "codigo" && (
+          <div>
+            <div style={{ background: "var(--color-background-secondary)", padding: "8px 14px", borderBottom: "0.5px solid var(--color-border-tertiary)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>
+                index.html · {CODE.split("\n").length} linhas
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={copiar} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", borderRadius: 8, background: copiado ? "var(--color-background-success)" : undefined, color: copiado ? "var(--color-text-success)" : undefined }}>
+                  {copiado ? "✓ Copiado!" : "⎘ Copiar tudo"}
+                </button>
+                <button onClick={baixar} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", borderRadius: 8 }}>
+                  ↓ Baixar index.html
+                </button>
+              </div>
+            </div>
+            <textarea
+              readOnly
+              value={CODE}
+              onFocus={e => e.target.select()}
+              style={{ width: "100%", height: 480, border: "none", outline: "none", padding: 16, fontFamily: "var(--font-mono)", fontSize: 11.5, lineHeight: 1.65, background: "var(--color-background-primary)", color: "var(--color-text-primary)", resize: "none", display: "block" }}
+            />
+          </div>
+        )}
+
+        {/* ABA: GITHUB */}
+        {tab === "github" && (
+          <div style={{ padding: "1.5rem" }}>
+            <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Como publicar no GitHub Pages</p>
+
+            {[
+              { n: "1", titulo: "Baixe o arquivo", desc: 'Clique em "Baixar index.html" na aba Código. O arquivo já vem com o nome correto.', btn: "↓ Baixar index.html", acao: baixar },
+              { n: "2", titulo: "Abra o repositório", desc: "Acesse github.com, entre no seu repositório do jogo e clique no arquivo index.html existente." },
+              { n: "3", titulo: "Edite direto no GitHub", desc: 'Clique no ícone de lápis ✏️ → selecione todo o conteúdo (Ctrl+A) → delete → cole o novo código (Ctrl+V).' },
+              { n: "4", titulo: "Commit e aguarde", desc: 'Clique em "Commit changes" e aguarde 1–2 minutos. O GitHub Pages atualiza automaticamente.' },
+            ].map(({ n, titulo, desc, btn, acao }) => (
+              <div key={n} style={{ display: "flex", gap: 14, marginBottom: 18, alignItems: "flex-start" }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-background-info)", color: "var(--color-text-info)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 500, flexShrink: 0 }}>{n}</div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{titulo}</p>
+                  <p style={{ fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.5 }}>{desc}</p>
+                  {btn && <button onClick={acao} style={{ marginTop: 10, padding: "7px 16px", fontSize: 13, cursor: "pointer", borderRadius: 8 }}>{btn}</button>}
+                </div>
+              </div>
+            ))}
+
+            <div style={{ marginTop: 8, padding: "12px 16px", background: "var(--color-background-secondary)", borderRadius: 10, border: "0.5px solid var(--color-border-tertiary)" }}>
+              <p style={{ fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.6 }}>
+                Após publicar, o jogo ficará disponível em:<br />
+                <code style={{ fontFamily: "var(--font-mono)", fontSize: 12, background: "var(--color-background-primary)", padding: "2px 6px", borderRadius: 4 }}>
+                  https://SEU_USUARIO.github.io/jogocloretodemagnesio/
+                </code>
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
-  m.position.set(...p);return m;
 }
-function bond(a,b){
-  const dir=new THREE.Vector3(...b).sub(new THREE.Vector3(...a));
-  const len=dir.length();
-  const m=new THREE.Mesh(
-    new THREE.CylinderGeometry(.022,.022,len,8),
-    new THREE.MeshPhongMaterial({color:COR.bond})
-  );
-  m.position.set((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2);
-  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
-  return m;
-}
-
-function molMg(){ const g=new THREE.Group();g.add(esfera(.28,COR.mg,[0,0,0]));return g; }
-function molHCl(){
-  const g=new THREE.Group();
-  g.add(esfera(.20,COR.cl,[-0.26,0,0]));
-  g.add(esfera(.11,COR.h,[0.26,0,0]));
-  g.add(bond([-0.26,0,0],[0.26,0,0]));
-  return g;
-}
-function molMgCl2(){
-  const g=new THREE.Group();
-  g.add(esfera(.24,COR.mg,[0,0,0]));
-  g.add(esfera(.18,COR.cl,[-0.50,0,0]));
-  g.add(esfera(.18,COR.cl,[0.50,0,0]));
-  g.add(bond([-0.50,0,0],[0,0,0]));
-  g.add(bond([0,0,0],[0.50,0,0]));
-  return g;
-}
-function molH2(){
-  const g=new THREE.Group();
-  g.add(esfera(.11,COR.h,[-0.18,0,0]));
-  g.add(esfera(.11,COR.h,[0.18,0,0]));
-  g.add(bond([-0.18,0,0],[0.18,0,0]));
-  return g;
-}
-
-const FABS=[molMg,molHCl,molMgCl2,molH2];
-
-// Calcula espaçamento dinâmico baseado no FOV e distância da câmera
-function buildMols(){
-  if(!mols)return;
-  mols.children.forEach(c=>c.traverse(o=>{
-    if(o.geometry)o.geometry.dispose();
-    if(o.material)o.material.dispose();
-  }));
-  mols.clear();
-
-  // Área visível na profundidade z=0 com câmera em z=5, FOV 55°
-  const fovRad=55*Math.PI/180;
-  const distZ=5;
-  const alturaVis=2*Math.tan(fovRad/2)*distZ;
-  const larguraVis=alturaVis*(innerWidth/innerHeight);
-
-  // 4 grupos + 3 separadores: distribui uniformemente
-  const nGrupos=4;
-  const espGrupo=larguraVis/(nGrupos+.5);
-  const xInicio=-(espGrupo*(nGrupos-1)/2);
-
-  coef.forEach((qtd,idx)=>{
-    const gx=xInicio+idx*espGrupo;
-    // Espaçamento vertical proporcional à altura visível
-    const espY=Math.min(alturaVis/(qtd+1), 1.1);
-    for(let i=0;i<qtd;i++){
-      const mol=FABS[idx]();
-      const oy=(i-(qtd-1)/2)*espY;
-      mol.position.set(gx,oy,0);
-      mol.rotation.y=Math.random()*Math.PI;
-      mols.add(mol);
-    }
-  });
-}
-
-let tick=0;
-function loop3d(){
-  requestAnimationFrame(loop3d);
-  tick+=.012;
-  if(mols){
-    if(maoAtiva){
-      mols.position.x+=(maoPos.x-mols.position.x)*.09;
-      mols.position.y+=(maoPos.y-mols.position.y)*.09;
-    }else{
-      mols.position.x*=.92;
-      mols.position.y*=.92;
-    }
-    mols.children.forEach((m,i)=>{
-      m.rotation.y=tick*.5+i*.85;
-      m.rotation.x=Math.sin(tick*.3+i)*.1;
-    });
-  }
-  renderer.render(scene,camera);
-}
-
-// ════════════════════════════════════════
-//  CONTROLES
-// ════════════════════════════════════════
-function alt(i,d){
-  if(fim)return;
-  const v=coef[i]+d;
-  if(v<1||v>4)return;
-  som('click');
-  coef[i]=v;
-  document.getElementById('c'+i).textContent=v;
-  buildMols();
-  updBtns();
-}
-function updBtns(){
-  for(let i=0;i<4;i++){
-    document.querySelectorAll(`[onclick="alt(${i},-1)"]`)[0].disabled=coef[i]<=1;
-    document.querySelectorAll(`[onclick="alt(${i},1)"]`)[0].disabled=coef[i]>=4;
-  }
-}
-
-// ════════════════════════════════════════
-//  VERIFICAÇÃO
-// ════════════════════════════════════════
-const DICAS=[
-  'Dica: observe as esferas azuis (Cl) no produto MgCl₂.',
-  'Dica: MgCl₂ tem 2 Cl → são precisos 2 HCl nos reagentes.',
-  'Resposta: coeficientes 1, 2, 1, 1  (Mg + 2HCl → MgCl₂ + H₂)'
-];
-function verificar(){
-  if(fim)return;
-  tent++;document.getElementById('nt').textContent=tent;
-  const ok=coef.every((v,i)=>v===GABA[i]);
-  if(ok){
-    const p=Math.max(100-(tent-1)*25,10);
-    pts+=p;document.getElementById('np').textContent=pts;
-    fim=true;erros=0;
-    som('ok');
-    showPopup(true,'🎉 PARABÉNS! REAÇÃO BALANCEADA!',`+${p} pontos · 1 Mg + 2 HCl → 1 MgCl₂ + 1 H₂`);
-    confetes();
-  }else{
-    erros++;
-    som('err');
-    const di=Math.min(erros-1,DICAS.length-1);
-    showPopup(false,'❌ Equação desbalanceada',null,3200);
-    showDica(DICAS[di]);
-  }
-}
-function showPopup(ok,t,d,dur){
-  const p=document.getElementById('popup');
-  p.className='on '+(ok?'ok':'err');
-  p.innerHTML=t+(d?`<div class="pd">${d}</div>`:'');
-  if(!ok&&dur)setTimeout(()=>{ p.className=''; },dur);
-}
-function showDica(tx){
-  const el=document.getElementById('dica');
-  el.textContent=tx;el.className='on';
-  clearTimeout(el._t);el._t=setTimeout(()=>el.className='',5000);
-}
-
-// ════════════════════════════════════════
-//  CONFETES
-// ════════════════════════════════════════
-function confetes(){
-  const c=document.getElementById('conf');
-  const cs=['#2ecc71','#00d2c8','#f39c12','#e74c3c','#9b59b6','#4a9eff','#fff'];
-  for(let i=0;i<80;i++){
-    const p=document.createElement('div');p.className='cp';
-    const sz=6+Math.random()*8;
-    p.style.cssText=`left:${Math.random()*100}vw;background:${cs[i%cs.length]};width:${sz}px;height:${sz}px;border-radius:${Math.random()>.5?'50%':'2px'};animation-delay:${Math.random()}s;animation-duration:${1.4+Math.random()*.8}s;`;
-    c.appendChild(p);
-  }
-  setTimeout(()=>c.innerHTML='',3000);
-}
-
-// ════════════════════════════════════════
-//  DETECÇÃO DE MÃO — TensorFlow HandPose
-// ════════════════════════════════════════
-let detector=null;
-let video=null;
-// Canvas auxiliar para espelhar o frame (câmera frontal é espelhada na UI,
-// o modelo precisa receber o mesmo espelho para coordenadas corretas)
-let auxCanvas=null, auxCtx=null;
-
-async function initHandDetector(){
-  try{
-    await tf.setBackend('webgl');
-    await tf.ready();
-    const model=handPoseDetection.SupportedModels.MediaPipeHands;
-    const cfg={
-      runtime:'tfjs',          // usa TFJS puro, sem WASM externo — mais compatível
-      modelType:'lite',
-      maxHands:1,
-    };
-    detector=await handPoseDetection.createDetector(model,cfg);
-    console.log('Detector de mão pronto (TFJS).');
-    return true;
-  }catch(e){
-    console.error('HandPose init falhou:',e);
-    return false;
-  }
-}
-
-function getFrameEspelhado(){
-  if(!video||!video.videoWidth)return null;
-  if(!auxCanvas){
-    auxCanvas=document.createElement('canvas');
-    auxCtx=auxCanvas.getContext('2d');
-  }
-  if(auxCanvas.width!==video.videoWidth||auxCanvas.height!==video.videoHeight){
-    auxCanvas.width=video.videoWidth;
-    auxCanvas.height=video.videoHeight;
-  }
-  // O <video> é exibido espelhado (scaleX -1).
-  // Para que as coordenadas das mãos batam com o visual,
-  // enviamos ao modelo o frame já espelhado.
-  auxCtx.save();
-  auxCtx.translate(auxCanvas.width,0);
-  auxCtx.scale(-1,1);
-  auxCtx.drawImage(video,0,0);
-  auxCtx.restore();
-  return auxCanvas;
-}
-
-async function loopDeteccao(){
-  if(!detector||!video||video.paused||video.ended||!video.videoWidth){
-    requestAnimationFrame(loopDeteccao);return;
-  }
-  const frame=getFrameEspelhado();
-  if(!frame){requestAnimationFrame(loopDeteccao);return;}
-  try{
-    const hands=await detector.estimateHands(frame,{flipHorizontal:false});
-    processarMao(hands);
-  }catch(e){ /* frame ignorado */ }
-  // ~20 fps: espera 50ms antes do próximo frame
-  setTimeout(()=>requestAnimationFrame(loopDeteccao),50);
-}
-
-function processarMao(hands){
-  const dot=document.getElementById('dot');
-  const tm=document.getElementById('tmao');
-
-  if(hands&&hands.length>0){
-    const kp=hands[0].keypoints;
-    // keypoints do MediaPipeHands via TFJS têm nomes:
-    // index_finger_tip=8, index_finger_dip=7, middle_finger_tip=12, etc.
-    // Mas o array segue a mesma ordem do MediaPipe Hands (0..20)
-    // Verificação de mão aberta: ponta de cada dedo mais alta que a articulação
-    // (y menor = mais alto na imagem)
-    const aberta=
-      kp[8].y  < kp[6].y  &&   // indicador
-      kp[12].y < kp[10].y &&   // médio
-      kp[16].y < kp[14].y &&   // anelar
-      kp[20].y < kp[18].y;     // mínimo
-
-    dot.className='dot ok';
-
-    if(aberta){
-      tm.textContent='Mão aberta detectada';
-      // Converte coordenadas de pixel para espaço Three.js
-      // kp[9] = base do dedo médio (ponto estável)
-      const fovRad=55*Math.PI/180;
-      const altVis=2*Math.tan(fovRad/2)*5; // altura visível em z=0 com câmera em z=5
-      const largVis=altVis*(innerWidth/innerHeight);
-      // kp[9].x já está no frame espelhado → converte [0..videoWidth] → [-largVis/2..+largVis/2]
-      const nx=(kp[9].x/video.videoWidth - .5)*largVis;
-      const ny=(.5 - kp[9].y/video.videoHeight)*altVis;
-      maoPos={x:nx,y:ny};
-      maoAtiva=true;
-      if(mols)mols.visible=true;
-    }else{
-      tm.textContent='Abra a mão para ver as moléculas';
-      maoAtiva=false;
-      if(mols)mols.visible=false;
-    }
-  }else{
-    dot.className='dot';
-    tm.textContent='Aguardando mão…';
-    maoAtiva=false;
-    if(mols)mols.visible=false;
-  }
-}
-
-// ════════════════════════════════════════
-//  INICIALIZAÇÃO COM CÂMERA
-// ════════════════════════════════════════
-async function iniciarAR(){
-  document.getElementById('intro').classList.add('hide');
-  document.getElementById('hud').classList.add('on');
-  document.getElementById('painel').classList.add('on');
-  initThree();
-  updBtns();
-
-  video=document.getElementById('vcam');
-
-  if(!navigator.mediaDevices?.getUserMedia){
-    document.getElementById('ocam').classList.add('on');return;
-  }
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}}
-    });
-    video.srcObject=stream;
-    await video.play();
-    video.classList.add('on');
-
-    // Aguarda dimensões reais do vídeo
-    await new Promise(res=>{
-      if(video.videoWidth>0){res();}
-      else{video.addEventListener('loadeddata',res,{once:true});}
-    });
-
-    const ok=await initHandDetector();
-    if(ok){
-      loopDeteccao();
-    }else{
-      // Detector falhou: mostra moléculas direto sem AR
-      document.getElementById('smao').style.display='none';
-      if(mols)mols.visible=true;
-    }
-  }catch(err){
-    console.error('Câmera:',err);
-    document.getElementById('ocam').classList.add('on');
-  }
-}
-
-// ════════════════════════════════════════
-//  INICIALIZAÇÃO SEM CÂMERA
-// ════════════════════════════════════════
-function iniciarSemCam(){
-  semCam=true;
-  document.getElementById('intro').classList.add('hide');
-  document.getElementById('ocam').classList.remove('on');
-  document.getElementById('fbg').classList.add('on');
-  document.getElementById('hud').classList.add('on');
-  document.getElementById('painel').classList.add('on');
-  document.getElementById('smao').style.display='none';
-  initThree();
-  if(mols)mols.visible=true;
-  updBtns();
-}
-</script>
-</body>
-</html>
-ENDOFFILE
-echo "Linhas: $(wc -l < /mnt/user-data/outputs/jogocloretodemagnesio_v2.html)"
-
