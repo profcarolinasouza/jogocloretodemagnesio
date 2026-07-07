@@ -2,154 +2,334 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Aplicação educativa de AR para aprender balanceamento químico de forma interativa">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#000">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo AR - Formação do Cloreto de Magnésio</title>
     
-    <title>Balanceador Químico AR - Mg + HCl → MgCl₂ + H₂</title>
-    
-    <!-- A-Frame para renderização 3D/AR -->
+    <!-- Bibliotecas de Renderização 3D e AR -->
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     
-    <!-- MediaPipe para rastreamento de mão -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424926/hands.js" crossorigin="anonymous"></script>
-    
-    <link rel="stylesheet" href="styles.css">
+    <!-- Bibliotecas de Rastreamento de Mão (MediaPipe) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; }
+        
+        /* Vídeo nativo fixado no fundo */
+        video { 
+            position: absolute; 
+            width: 100vw; 
+            height: 100vh; 
+            object-fit: cover; 
+            z-index: 0; 
+            transform: scaleX(-1); 
+        }
+        
+        /* Container da cena 3D sobreposto ao vídeo */
+        #canvas-container { 
+            position: absolute; 
+            width: 100vw; 
+            height: 100vh; 
+            z-index: 1; 
+            pointer-events: none; /* Permite interações com o HTML abaixo se necessário */
+        }
+        
+        /* Interface Superior (HUD) */
+        #hud-jogo {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.9); color: white; padding: 12px 25px;
+            border-radius: 15px; text-align: center; z-index: 10; width: 85%; max-width: 540px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #444;
+        }
+        h2 { margin: 0 0 5px 0; font-size: 18px; color: #00cbc6; }
+        p { margin: 0; font-size: 13px; color: #bbb; }
+
+        /* Painel Inferior de Controles */
+        #painel-controles {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 15px;
+            width: 95%; max-width: 520px;
+        }
+
+        .ajuste-container {
+            display: flex; justify-content: space-between; width: 100%; background: rgba(0,0,0,0.8);
+            padding: 8px; border-radius: 12px; border: 1px solid #444;
+            pointer-events: auto; /* Reativa cliques nos botões */
+        }
+
+        .controle-bloco { display: flex; flex-direction: column; align-items: center; color: white; width: 24%; }
+        .label-comp { font-size: 12px; font-weight: bold; margin-bottom: 4px; text-align: center; }
+        .botoes-row { display: flex; align-items: center; gap: 4px; }
+        
+        .btn-seta {
+            background: #444; color: white; border: 1px solid #666; width: 26px; height: 26px;
+            border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;
+        }
+        .btn-seta:active { background: #00cbc6; }
+        .valor-coef { font-size: 16px; font-weight: bold; min-width: 14px; text-align: center; }
+
+        #btn-verificar {
+            background: #218c74; color: white; border: none; padding: 12px 35px;
+            font-size: 16px; font-weight: bold; border-radius: 25px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 80%;
+            pointer-events: auto;
+        }
+
+        /* Popup de Feedback Central */
+        #feedback-popup {
+            position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+            padding: 20px 30px; border-radius: 15px; color: white; font-weight: bold; text-align: center;
+            z-index: 20; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-size: 18px;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            width: 80%; max-width: 400px;
+        }
+    </style>
 </head>
 <body>
-    <!-- Câmera Nativa (Vídeo em Tempo Real) -->
+
+    <!-- Câmera Nativa -->
     <video id="webcam" autoplay playsinline muted></video>
 
-    <!-- HUD - Interface Superior -->
-    <div id="hud-jogo" role="heading" aria-level="1">
-        <h2>Balanceador Químico AR</h2>
-        <p id="hint-text">Mostre a mão aberta para ver a reação</p>
+    <div id="hud-jogo">
+        <h2>Balanço Químico: Mg + HCl → MgCl₂ + H₂</h2>
+        <p>Mostre a mão aberta para ver a reação. Cloro (Cl) é Azul!</p>
     </div>
 
-    <!-- Popup de Feedback -->
-    <div id="feedback-popup" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="feedback-popup"></div>
 
-    <!-- Indicador de Mão Detectada -->
-    <div id="hand-indicator" class="hand-indicator">
-        <div class="indicator-dot"></div>
-        <span class="indicator-text">Mão Detectada</span>
-    </div>
-
-    <!-- Painel de Controles -->
-    <div id="painel-controles" role="group" aria-label="Controles de balanceamento">
+    <div id="painel-controles">
         <div class="ajuste-container">
-            <!-- Magnésio (Mg) -->
             <div class="controle-bloco">
                 <span class="label-comp" style="color:#2ecc71;">Mg</span>
                 <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(0, -1)" aria-label="Diminuir coeficiente Mg">−</button>
-                    <span id="c0" class="valor-coef" aria-label="Coeficiente Mg">1</span>
-                    <button class="btn-seta" onclick="alterar(0, 1)" aria-label="Aumentar coeficiente Mg">+</button>
+                    <button class="btn-seta" onclick="alterar(0, -1)">-</button>
+                    <span id="c0" class="valor-coef">1</span>
+                    <button class="btn-seta" onclick="alterar(0, 1)">+</button>
                 </div>
             </div>
-
-            <!-- Cloreto de Hidrogênio (HCl) -->
             <div class="controle-bloco">
-                <span class="label-comp" style="color:#3498db;">HCl</span>
+                <span class="label-comp" style="color:#a4b0be;">HCl</span>
                 <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(1, -1)" aria-label="Diminuir coeficiente HCl">−</button>
-                    <span id="c1" class="valor-coef" aria-label="Coeficiente HCl">1</span>
-                    <button class="btn-seta" onclick="alterar(1, 1)" aria-label="Aumentar coeficiente HCl">+</button>
+                    <button class="btn-seta" onclick="alterar(1, -1)">-</button>
+                    <span id="c1" class="valor-coef">1</span>
+                    <button class="btn-seta" onclick="alterar(1, 1)">+</button>
                 </div>
             </div>
-
-            <!-- Cloreto de Magnésio (MgCl₂) -->
             <div class="controle-bloco">
                 <span class="label-comp" style="color:#10ac84;">MgCl₂</span>
                 <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(2, -1)" aria-label="Diminuir coeficiente MgCl₂">−</button>
-                    <span id="c2" class="valor-coef" aria-label="Coeficiente MgCl₂">1</span>
-                    <button class="btn-seta" onclick="alterar(2, 1)" aria-label="Aumentar coeficiente MgCl₂">+</button>
+                    <button class="btn-seta" onclick="alterar(2, -1)">-</button>
+                    <span id="c2" class="valor-coef">1</span>
+                    <button class="btn-seta" onclick="alterar(2, 1)">+</button>
                 </div>
             </div>
-
-            <!-- Hidrogênio Molecular (H₂) -->
             <div class="controle-bloco">
-                <span class="label-comp" style="color:#ecf0f1;">H₂</span>
+                <span class="label-comp" style="color:#ffffff;">H₂</span>
                 <div class="botoes-row">
-                    <button class="btn-seta" onclick="alterar(3, -1)" aria-label="Diminuir coeficiente H₂">−</button>
-                    <span id="c3" class="valor-coef" aria-label="Coeficiente H₂">1</span>
-                    <button class="btn-seta" onclick="alterar(3, 1)" aria-label="Aumentar coeficiente H₂">+</button>
+                    <button class="btn-seta" onclick="alterar(3, -1)">-</button>
+                    <span id="c3" class="valor-coef">1</span>
+                    <button class="btn-seta" onclick="alterar(3, 1)">+</button>
                 </div>
             </div>
         </div>
-
-        <!-- Botão Verificar -->
-        <button id="btn-verificar" onclick="verificarGabarito()" aria-label="Verificar se o balanceamento está correto">
-            ✓ Verificar Balanceamento
-        </button>
-
-        <!-- Botão Resetar (oculto por padrão) -->
-        <button id="btn-resetar" onclick="resetarJogo()" class="btn-secundario" aria-label="Resetar para coeficientes iniciais" style="display: none;">
-            ↻ Resetar
-        </button>
+        <button id="btn-verificar" onclick="verificarGabarito()">Verificar Balanceamento</button>
     </div>
 
-    <!-- Container A-Frame (Realidade Aumentada) -->
+    <!-- Espaço Realidade Aumentada -->
     <div id="canvas-container">
-        <a-scene 
-            embedded 
-            vr-mode-ui="enabled: false" 
-            device-orientation-permission-ui="enabled: false" 
-            renderer="alpha: true; colorManagement: true; antialias: true;">
-            
-            <!-- Câmera Virtual -->
+        <a-scene embedded vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" renderer="alpha: true; colorManagement: true;">
             <a-camera position="0 0 0" look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
 
-            <!-- Iluminação -->
-            <a-light type="ambient" intensity="1" color="#ffffff"></a-light>
-            <a-light 
-                type="directional" 
-                position="5 10 7" 
-                intensity="0.6" 
-                shadow="cast: true"
-                light="castShadow: true">
-            </a-light>
+            <a-light type="ambient" intensity="0.9"></a-light>
+            <a-light type="directional" position="1 3 2" intensity="0.8"></a-light>
 
-            <!-- Entidade Principal da Reação -->
-            <a-entity id="filtro-reacao" position="0 0 -2.8" scale="0.35 0.35 0.35" visible="false">
+            <a-entity id="filtro-reacao" position="0 0 -2.8" scale="0.32 0.32 0.32" visible="false">
                 
-                <!-- Reagente 1: Magnésio (Mg) -->
+                <!-- REAGENTE 1: Mg -->
                 <a-entity id="grupo-mg" position="-2.0 0 0"></a-entity>
                 
-                <!-- Operador: + (Mg + HCl) -->
-                <a-entity position="-1.2 0 0" class="operador">
+                <!-- Sinal (+) Reagentes -->
+                <a-entity position="-1.2 0 0">
                     <a-box width="0.02" height="0.14" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
                     <a-box width="0.14" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
                 </a-entity>
 
-                <!-- Reagente 2: Ácido Clorídrico (HCl) -->
+                <!-- REAGENTE 2: HCl -->
                 <a-entity id="grupo-hcl" position="-0.4 0 0"></a-entity>
 
-                <!-- Seta de Reação (→) -->
-                <a-entity position="0.5 0 0" class="arrow">
-                    <a-box position="-0.04 0 0" width="0.16" height="0.02" depth="0.02" color="#00CBC6" material="shader: flat;"></a-box>
-                    <a-cone position="0.06 0 0" radius-bottom="0.05" height="0.08" color="#00CBC6" rotation="0 0 -90" material="shader: flat;"></a-cone>
+                <!-- Seta de Reação (->) -->
+                <a-entity position="0.5 0 0">
+                    <a-box position="-0.04 0 0" width="0.16" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
+                    <a-cone position="0.06 0 0" radius-bottom="0.05" height="0.08" color="#FFFFFF" rotation="0 0 -90" material="shader: flat;"></a-cone>
                 </a-entity>
 
-                <!-- Produto 1: Cloreto de Magnésio (MgCl₂) -->
+                <!-- PRODUTO 1: MgCl2 -->
                 <a-entity id="grupo-mgcl2" position="1.4 0 0"></a-entity>
 
-                <!-- Operador: + (MgCl₂ + H₂) -->
-                <a-entity position="2.2 0 0" class="operador">
+                <!-- Sinal (+) Produtos -->
+                <a-entity position="2.2 0 0">
                     <a-box width="0.02" height="0.14" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
                     <a-box width="0.14" height="0.02" depth="0.02" color="#FFFFFF" material="shader: flat;"></a-box>
                 </a-entity>
 
-                <!-- Produto 2: Hidrogênio Molecular (H₂) -->
+                <!-- PRODUTO 2: H2 -->
                 <a-entity id="grupo-h2" position="2.9 0 0"></a-entity>
 
             </a-entity>
         </a-scene>
     </div>
 
-    <!-- Script Principal -->
-    <script src="app.js"></script>
+    <script>
+        let coeficientes = [1, 1, 1, 1];
+        const gabarito = [1, 2, 1, 1]; 
+
+        const templates = {
+            mg: `<a-entity class="molecule">
+                    <a-sphere radius="0.16" color="#2ECC71" material="roughness: 0.2; metalness: 0.5;"></a-sphere>
+                 </a-entity>`,
+            hcl: `<a-entity class="molecule" rotation="0 0 15">
+                    <a-sphere position="-0.14 0 0" radius="0.12" color="#1e3799" material="roughness: 0.2;"></a-sphere>
+                    <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.012" height="0.28" color="#CCCCCC"></a-cylinder>
+                    <a-sphere position="0.14 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
+                   </a-entity>`,
+            mgcl2: `<a-entity class="molecule" rotation="15 30 0">
+                        <a-sphere radius="0.14" color="#2ECC71" material="roughness: 0.2;"></a-sphere>
+                        <a-entity>
+                            <a-cylinder position="-0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
+                            <a-sphere position="-0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
+                        </a-entity>
+                        <a-entity>
+                            <a-cylinder position="0.16 0 0" rotation="0 0 90" radius="0.012" height="0.32" color="#CCCCCC"></a-cylinder>
+                            <a-sphere position="0.32 0 0" radius="0.12" color="#1e3799"></a-sphere>
+                        </a-entity>
+                     </a-entity>`,
+            h2: `<a-entity class="molecule" rotation="0 0 -20">
+                    <a-sphere position="-0.10 0 0" radius="0.06" color="#FFFFFF" material="roughness: 0.2;"></a-sphere>
+                    <a-cylinder position="0 0 0" rotation="0 0 90" radius="0.01" height="0.20" color="#CCCCCC"></a-cylinder>
+                    <a-sphere position="0.10 0 0" radius="0.06" color="#FFFFFF"></a-sphere>
+                  </a-entity>`
+        };
+
+        function renderizarMoleculas() {
+            const IDs = ['grupo-mg', 'grupo-hcl', 'grupo-mgcl2', 'grupo-h2'];
+            const keys = ['mg', 'hcl', 'mgcl2', 'h2'];
+
+            IDs.forEach((id, idx) => {
+                const conteiner = document.getElementById(id);
+                if(!conteiner) return;
+                conteiner.innerHTML = ''; 
+
+                let qtd = coeficientes[idx];
+                for (let i = 0; i < qtd; i++) {
+                    let wrapper = document.createElement('a-entity');
+                    let desvioY = (i - (qtd - 1) / 2) * 1.10;
+                    wrapper.setAttribute('position', `0 ${desvioY} 0`);
+                    wrapper.innerHTML = templates[keys[idx]];
+                    conteiner.appendChild(wrapper);
+                }
+            });
+        }
+
+        function alterar(index, valor) {
+            let novoValor = coeficientes[index] + valor;
+            if (novoValor >= 1 && novoValor <= 3) { 
+                coeficientes[index] = novoValor;
+                document.getElementById(`c${index}`).innerText = novoValor;
+                renderizarMoleculas(); 
+            }
+        }
+
+        // CORREÇÃO AQUI: FEEDBACK AGORA SOME EM TODOS OS CENÁRIOS
+        function verificarGabarito() {
+            const popup = document.getElementById('feedback-popup');
+            popup.style.display = 'block';
+            
+            let acertou = coeficientes.every((val, index) => val === gabarito[index]);
+
+            if (acertou) {
+                popup.style.backgroundColor = "rgba(46, 204, 113, 0.95)";
+                popup.innerHTML = "🎉 PARABÉNS! REAÇÃO BALANCEADA!<br><span style='font-size:13px; font-weight:normal; display:block; margin-top:5px;'>Equação em equilíbrio perfeito. 1 Magnésio e 2 Ácidos Clorídricos reagem sem sobras!</span>";
+                popup.style.transform = "translate(-50%, -50%) scale(1)";
+            } else {
+                popup.style.backgroundColor = "rgba(231, 76, 60, 0.95)";
+                popup.innerHTML = "❌ EQUAÇÃO DESBALANÇADA<br><span style='font-size:13px; font-weight:normal; display:block; margin-top:5px;'>Dica: Conte os Cloros (Azul). No produto MgCl₂ existem dois. Ajuste os reagentes!</span>";
+                popup.style.transform = "translate(-50%, -50%) scale(1)";
+            }
+
+            // Temporizador universal: Esconde o pop-up após 3 segundos
+            setTimeout(() => {
+                popup.style.transform = "translate(-50%, -50%) scale(0.5)";
+                popup.style.display = 'none';
+            }, 3000);
+        }
+
+        window.onload = () => {
+            renderizarMoleculas();
+            // Garante o fundo transparente do A-Frame
+            const sceneEl = document.querySelector('a-scene');
+            if (sceneEl) {
+                sceneEl.addEventListener('render-target-loaded', () => {
+                    sceneEl.renderer.setClearColor(0x000000, 0);
+                });
+            }
+        };
+
+        // --- CÂMERA E MEDIAPIPE NATIVOS ---
+        const videoElement = document.getElementById('webcam');
+        const filtroReacao = document.getElementById('filtro-reacao');
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+        hands.onResults(onResults);
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
+            })
+            .then(function(stream) {
+                videoElement.srcObject = stream;
+                videoElement.play();
+                
+                function processarFrame() {
+                    if (!videoElement.paused && !videoElement.ended) {
+                        hands.send({ image: videoElement }).then(() => {
+                            requestAnimationFrame(processarFrame);
+                        }).catch(() => {
+                            requestAnimationFrame(processarFrame);
+                        });
+                    } else {
+                        requestAnimationFrame(processarFrame);
+                    }
+                }
+                videoElement.onloadedmetadata = () => {
+                    processarFrame();
+                };
+            })
+            .catch(function(err) {
+                console.error("Erro na câmera nativa: ", err);
+                alert("Permissão de câmera negada. Vá nas configurações do navegador e permita o uso.");
+            });
+        }
+
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                // Verifica se a mão está aberta
+                const isHandOpen = landmarks[8].y < landmarks[6].y && landmarks[12].y < landmarks[10].y && landmarks[16].y < landmarks[14].y && landmarks[20].y < landmarks[18].y;
+
+                if (isHandOpen) {
+                    const handX = (landmarks[9].x - 0.5) * -2.5; // Espelhamento corrigido
+                    const handY = (landmarks[9].y - 0.5) * -2.5;
+                    filtroReacao.setAttribute('position', `${handX} ${handY} -2.8`);
+                    filtroReacao.setAttribute('visible', 'true');
+                } else {
+                    filtroReacao.setAttribute('visible', 'false');
+                }
+            } else {
+                filtroReacao.setAttribute('visible', 'false');
+            }
+        }
+    </script>
 </body>
 </html>
